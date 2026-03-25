@@ -1,0 +1,176 @@
+---
+title: idb Setup
+description: Install and configure Facebook idb for cursor-free touch injection in Preflight MCP.
+---
+
+Preflight uses [Facebook idb](https://fbidb.io/) (iOS Development Bridge) to inject touch events directly into the iOS Simulator through IndigoHID — the same touch event subsystem that real devices use. This means taps, swipes, and long presses happen without your Mac cursor moving at all.
+
+## Why idb Matters
+
+Without idb, Preflight falls back to Swift CGEvent injection: it maps simulator screen coordinates to macOS screen coordinates and synthesizes mouse events. This works, but it briefly moves your cursor on every tap — disruptive when you're working alongside the AI agent.
+
+With idb, touch events go directly to the simulator process. Your cursor stays wherever you left it.
+
+## Touch Injection Pipeline
+
+```
+simulator_tap(x=200, y=400)
+    │
+    ├─ idb available? ──YES──► idb ui tap --udid <UDID> 200 400
+    │                           (IndigoHID → real iOS touch event)
+    │                           (zero cursor movement)
+    │
+    └─ idb unavailable? ──► coordinate mapper → macOS screen coords
+                             → Swift CGEvent binary → mouse down/up
+```
+
+Preflight checks idb availability once at server startup and caches the result. It searches in this order:
+
+1. `PREFLIGHT_IDB_PATH` environment variable (if set)
+2. `which idb` — respects the `PATH` in your MCP config
+3. Common install locations (see below)
+
+## Install idb
+
+<Steps>
+  <Step title="Tap the Facebook Homebrew repository">
+    ```bash
+    brew tap facebook/fb
+    ```
+  </Step>
+
+  <Step title="Install idb-companion">
+    This installs the companion daemon that runs alongside the simulator.
+
+    ```bash
+    brew install idb-companion
+    ```
+  </Step>
+
+  <Step title="Install the idb Python client">
+    This installs the `idb` CLI binary that Preflight calls.
+
+    ```bash
+    pip3 install fb-idb
+    ```
+  </Step>
+
+  <Step title="Verify the installation">
+    ```bash
+    which idb
+    ```
+
+    You should see a path like `/opt/homebrew/bin/idb` or `~/Library/Python/3.11/bin/idb`.
+  </Step>
+</Steps>
+
+## Finding Your idb Path
+
+pip3 installs `idb` into a Python-versioned directory that isn't always on the system `PATH`. Run:
+
+```bash
+which idb
+```
+
+If `which` returns nothing, check the common pip3 install locations directly:
+
+```bash
+ls ~/Library/Python/3.*/bin/idb
+```
+
+Preflight automatically scans these paths at startup:
+
+| Path | Install method |
+|------|----------------|
+| `/opt/homebrew/bin/idb` | Homebrew (Apple Silicon) |
+| `/usr/local/bin/idb` | Homebrew (Intel) |
+| `~/Library/Python/3.9/bin/idb` | pip3 (Python 3.9) |
+| `~/Library/Python/3.10/bin/idb` | pip3 (Python 3.10) |
+| `~/Library/Python/3.11/bin/idb` | pip3 (Python 3.11) |
+| `~/Library/Python/3.12/bin/idb` | pip3 (Python 3.12) |
+| `~/Library/Python/3.13/bin/idb` | pip3 (Python 3.13) |
+| `~/.local/bin/idb` | pip3 (user install) |
+
+If your path is in this list, Preflight finds idb automatically even without `PATH` or `PREFLIGHT_IDB_PATH`.
+
+## Adding idb to PATH in Your MCP Config
+
+MCP clients launch the server with a minimal environment. You need to explicitly include the directory containing `idb` in the `PATH` env var.
+
+```json
+{
+  "mcpServers": {
+    "preflight": {
+      "command": "node",
+      "args": ["/path/to/Preflight/dist/index.js"],
+      "env": {
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+If idb is in a Python bin directory, append it:
+
+```json
+{
+  "env": {
+    "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/you/Library/Python/3.11/bin"
+  }
+}
+```
+
+<Tip>
+  Replace `3.11` with your actual Python version. Run `python3 --version` to check.
+</Tip>
+
+## Using PREFLIGHT_IDB_PATH
+
+If you'd rather not modify `PATH`, set `PREFLIGHT_IDB_PATH` to the absolute path of the `idb` binary:
+
+```json
+{
+  "mcpServers": {
+    "preflight": {
+      "command": "node",
+      "args": ["/path/to/Preflight/dist/index.js"],
+      "env": {
+        "PREFLIGHT_IDB_PATH": "/Users/you/Library/Python/3.11/bin/idb"
+      }
+    }
+  }
+}
+```
+
+Preflight checks this path first. If the file exists, it uses it immediately without scanning other locations.
+
+## Verifying idb Is Detected
+
+The easiest way to confirm idb is working is to check the tool descriptions returned to your MCP client. When idb is active, interaction tools show `[cursor-free]` in their description. When falling back to CGEvent, they show `[CGEvent fallback]`.
+
+You can also set `LOG_LEVEL=debug` to see exactly what Preflight finds at startup:
+
+```
+[2026-03-25T10:00:00.000Z] [DEBUG] [idb] idb found via PATH: /opt/homebrew/bin/idb
+```
+
+or, if detection fails:
+
+```
+[2026-03-25T10:00:00.000Z] [DEBUG] [idb] idb not found in PATH or common locations
+```
+
+## CGEvent Fallback Behavior
+
+When idb is not available, Preflight uses a compiled Swift binary (`dist/mouse-events`) to inject touch via CGEvent:
+
+- It maps simulator screen coordinates to macOS display coordinates using the simulator window geometry
+- It synthesizes `mouseDown` and `mouseUp` events at the computed screen position
+- Your Mac cursor moves to that position briefly, then stays there
+
+This works for most interactions but is unsuitable if you need to use your Mac while the AI agent is running tests.
+
+<Note>
+  The Swift binary (`dist/mouse-events`) is compiled during `npm run build` alongside the TypeScript output. If you see errors about the binary missing, run `npm run build` again — it requires `swiftc` from Xcode Command Line Tools.
+</Note>

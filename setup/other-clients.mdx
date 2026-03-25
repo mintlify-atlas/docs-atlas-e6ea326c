@@ -1,0 +1,73 @@
+---
+title: Other Clients
+description: Set up Preflight MCP with Zed or any other MCP-compatible client using the stdio transport.
+---
+
+Preflight uses the standard MCP stdio transport, so it works with any MCP-compatible client — not just the IDEs listed in this guide.
+
+## Zed
+
+<Steps>
+  <Step title="Build Preflight">
+    If you haven't already, clone and build the server:
+
+    ```bash
+    git clone https://github.com/EthanAckerman-git/Preflight.git
+    cd Preflight
+    npm install
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Edit Zed settings">
+    Open `~/.config/zed/settings.json` and add the Preflight context server:
+
+    ```json
+    {
+      "context_servers": {
+        "preflight": {
+          "command": {
+            "path": "node",
+            "args": ["/path/to/Preflight/dist/index.js"],
+            "env": {
+              "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Replace `/path/to/Preflight/dist/index.js` with the absolute path to the built server on your machine.
+  </Step>
+
+  <Step title="Reload Zed">
+    Restart Zed to pick up the new configuration.
+  </Step>
+</Steps>
+
+## Any MCP-compatible client
+
+If your client isn't listed above, configure it to run Preflight using the standard MCP stdio transport:
+
+```bash
+node /path/to/Preflight/dist/index.js
+```
+
+Most clients let you specify a command, arguments, and environment variables. Use these values:
+
+| Field | Value |
+|-------|-------|
+| Command | `node` |
+| Args | `/path/to/Preflight/dist/index.js` |
+| `PATH` env var | `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin` |
+
+<Note>
+  The `PATH` environment variable must include the directory where idb is installed. Without it, Preflight falls back to CGEvent mouse injection, which briefly moves your cursor during touch interactions.
+
+  If you installed idb via pip, also add your Python bin directory — for example, `~/Library/Python/3.x/bin`.
+</Note>
+
+<Tip>
+  You can also set `PREFLIGHT_IDB_PATH` to the full path of the idb binary instead of relying on `PATH` resolution.
+</Tip>

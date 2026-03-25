@@ -1,0 +1,48 @@
+---
+title: Windsurf
+description: Set up Preflight MCP with Windsurf by editing the Codeium MCP config file.
+---
+
+<Steps>
+  <Step title="Build Preflight">
+    If you haven't already, clone and build the server:
+
+    ```bash
+    git clone https://github.com/EthanAckerman-git/Preflight.git
+    cd Preflight
+    npm install
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Edit the MCP config file">
+    Open `~/.codeium/windsurf/mcp_config.json`, creating it if it doesn't exist, and add the Preflight entry:
+
+    ```json
+    {
+      "mcpServers": {
+        "preflight": {
+          "command": "node",
+          "args": ["/path/to/Preflight/dist/index.js"],
+          "env": {
+            "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+          }
+        }
+      }
+    }
+    ```
+
+    Replace `/path/to/Preflight/dist/index.js` with the absolute path to the built server on your machine.
+
+    <Note>
+      If you installed idb via pip, add your Python bin directory to `PATH`. For example:
+      `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:~/Library/Python/3.x/bin`
+    </Note>
+  </Step>
+
+  <Step title="Verify in Windsurf">
+    1. Restart Windsurf.
+    2. Open **Settings → Cascade → MCP**.
+    3. Confirm that **preflight** appears in the list.
+  </Step>
+</Steps>

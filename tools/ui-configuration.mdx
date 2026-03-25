@@ -1,0 +1,228 @@
+---
+title: UI Configuration
+description: Control the simulator's appearance, status bar, and screen recording to create consistent visual testing environments.
+---
+
+The UI configuration tools let you control how the simulator looks and capture what happens on screen — switch between light and dark mode, override the status bar to show consistent values in screenshots, and record video with automatic key frame extraction.
+
+## simulator_set_appearance
+
+Switch the simulator between light and dark mode. The change applies system-wide immediately without a reboot.
+
+### Parameters
+
+<ParamField path="mode" type="string" required>
+  The appearance mode to apply. One of `"light"` or `"dark"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+simulator_set_appearance mode="dark"
+simulator_set_appearance mode="light"
+```
+
+---
+
+## simulator_override_status_bar
+
+Override individual status bar fields to produce consistent, reproducible screenshots. Useful for marketing assets and visual regression tests where the real time, battery, and signal would vary.
+
+### Parameters
+
+<ParamField path="time" type="string">
+  Time string to display. For example, `"9:41"`.
+</ParamField>
+
+<ParamField path="batteryLevel" type="number">
+  Battery percentage from `0` to `100`.
+</ParamField>
+
+<ParamField path="batteryState" type="string">
+  Battery state. One of `"charging"`, `"charged"`, or `"discharging"`.
+</ParamField>
+
+<ParamField path="cellularBars" type="number">
+  Cellular signal strength from `0` to `4`.
+</ParamField>
+
+<ParamField path="wifiBars" type="number">
+  WiFi signal strength from `0` to `3`.
+</ParamField>
+
+<ParamField path="networkType" type="string">
+  Data network type to display. One of: `wifi`, `3g`, `4g`, `lte`, `lte-a`, `lte+`, `5g`, `5g+`, `5g-uwb`, `5g-uc`.
+</ParamField>
+
+<ParamField path="operatorName" type="string">
+  Carrier or operator name to display.
+</ParamField>
+
+<ParamField path="clear" type="boolean">
+  Set to `true` to remove all status bar overrides and restore the real values.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example: screenshot-ready status bar
+
+```bash
+# Configure a clean status bar for marketing screenshots
+simulator_override_status_bar \
+  time="9:41" \
+  batteryLevel=100 \
+  batteryState="charged" \
+  cellularBars=4 \
+  wifiBars=3 \
+  networkType="5g" \
+  operatorName="Carrier"
+
+# After screenshots, restore real values
+simulator_override_status_bar clear=true
+```
+
+---
+
+## simulator_record_video
+
+Start recording the simulator screen to a temporary video file. Use `simulator_stop_recording` to stop and retrieve key frames as inline images.
+
+<Note>
+  Only one recording can be active per device at a time. If a recording is already in progress, the tool returns an error asking you to stop it first.
+</Note>
+
+### Parameters
+
+<ParamField path="codec" type="string">
+  Video codec to use for encoding. One of `"h264"` (default) or `"hevc"`.
+</ParamField>
+
+<ParamField path="display" type="string">
+  Which display to capture. One of `"internal"` (default) or `"external"`.
+</ParamField>
+
+<ParamField path="mask" type="string">
+  How to handle the non-rectangular device mask. One of `"ignored"`, `"alpha"`, or `"black"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+simulator_record_video codec="h264"
+# → Video recording started (h264). Use simulator_stop_recording to stop and get key frames.
+```
+
+---
+
+## simulator_stop_recording
+
+Stop an active recording. Key frames are extracted from the video at even intervals and returned inline as JPEG images — no video file is saved to disk unless you provide `savePath`.
+
+### Parameters
+
+<ParamField path="savePath" type="string">
+  Optional path to save the full video file. If omitted, the temporary video is discarded after key frame extraction. Parent directories are created automatically.
+</ParamField>
+
+<ParamField path="maxFrames" type="number">
+  Maximum number of key frames to extract. Defaults to `3`. Maximum is `6`. If [ffmpeg](https://ffmpeg.org/) is not available, a single final screenshot is returned instead.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Stop and get 5 key frames, also save the full video
+simulator_stop_recording maxFrames=5 savePath="/tmp/recordings/flow.mp4"
+```
+
+---
+
+## Dark Mode Testing Workflow
+
+Switch between appearances and capture screenshots to verify your app's dark mode support.
+
+<Steps>
+  <Step title="Set a consistent status bar">
+    Override the status bar so both screenshots have the same time and battery state:
+
+    ```bash
+    simulator_override_status_bar time="9:41" batteryLevel=100 batteryState="charged"
+    ```
+  </Step>
+
+  <Step title="Capture the light mode screenshot">
+    ```bash
+    simulator_set_appearance mode="light"
+    simulator_screenshot
+    ```
+  </Step>
+
+  <Step title="Switch to dark mode and screenshot again">
+    ```bash
+    simulator_set_appearance mode="dark"
+    simulator_screenshot
+    ```
+  </Step>
+
+  <Step title="Clear the status bar overrides">
+    Restore real status bar values when you're done:
+
+    ```bash
+    simulator_override_status_bar clear=true
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Video Recording Workflow
+
+Record a user flow and get representative frames for review without storing video on disk.
+
+<Steps>
+  <Step title="Start recording">
+    ```bash
+    simulator_record_video codec="h264"
+    ```
+  </Step>
+
+  <Step title="Perform the interactions you want to capture">
+    Navigate through screens, fill forms, trigger transitions, and exercise the feature under test.
+  </Step>
+
+  <Step title="Stop recording and retrieve key frames">
+    Stop the recording and extract evenly-spaced frames. With ffmpeg installed, frames are extracted from across the full duration:
+
+    ```bash
+    simulator_stop_recording maxFrames=4
+    ```
+
+    The response contains JPEG images directly — no files accumulate on your Desktop.
+  </Step>
+
+  <Step title="Optionally save the full video">
+    If you need the raw video for a report or CI artifact:
+
+    ```bash
+    simulator_stop_recording maxFrames=4 savePath="/tmp/recordings/onboarding-flow.mp4"
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Install [ffmpeg](https://ffmpeg.org/) for best frame extraction results. Without it, only a single final screenshot is returned.
+</Tip>

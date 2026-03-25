@@ -1,0 +1,237 @@
+---
+title: Troubleshooting
+description: Solutions for common issues when setting up and running Preflight MCP.
+---
+
+If something isn't working, start by setting `LOG_LEVEL=debug` in your MCP config to get verbose output from the server process. Logs are written to stderr, which most MCP clients surface in their server logs panel.
+
+```json
+{
+  "env": {
+    "LOG_LEVEL": "debug"
+  }
+}
+```
+
+## Common Issues
+
+<AccordionGroup>
+
+<Accordion title="idb not detected — tools show [CGEvent fallback]">
+
+This means Preflight could not find the `idb` binary at startup. It searched:
+1. The `PREFLIGHT_IDB_PATH` env var (if set)
+2. `which idb` using the `PATH` in your MCP config
+3. Common pip3 install locations (`~/Library/Python/3.x/bin/idb`, `/opt/homebrew/bin/idb`, etc.)
+
+**Step 1 — Verify idb is installed:**
+
+```bash
+which idb
+```
+
+If this returns nothing, install idb:
+
+```bash
+brew tap facebook/fb
+brew install idb-companion
+pip3 install fb-idb
+```
+
+**Step 2 — Find the idb binary path:**
+
+```bash
+ls ~/Library/Python/3.*/bin/idb
+```
+
+**Step 3a — Add idb to PATH in your MCP config:**
+
+```json
+{
+  "env": {
+    "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/you/Library/Python/3.11/bin"
+  }
+}
+```
+
+**Step 3b — Or set PREFLIGHT_IDB_PATH directly:**
+
+```json
+{
+  "env": {
+    "PREFLIGHT_IDB_PATH": "/Users/you/Library/Python/3.11/bin/idb"
+  }
+}
+```
+
+**Step 4 — Confirm with debug logging:**
+
+Set `LOG_LEVEL=debug` and restart the MCP server. You should see:
+
+```
+[DEBUG] [idb] idb found via PATH: /opt/homebrew/bin/idb
+```
+
+</Accordion>
+
+<Accordion title="Simulator not found or no booted simulator">
+
+Preflight tools that require a running simulator will fail if no simulator is booted.
+
+**Open Simulator.app:**
+
+```bash
+open -a Simulator
+```
+
+**Boot a specific device using simctl:**
+
+```bash
+xcrun simctl boot "iPhone 16 Pro"
+```
+
+**Or use the `simulator_boot` tool** through your MCP client:
+
+```
+Boot the iPhone 16 Pro simulator
+```
+
+**List available devices:**
+
+```bash
+xcrun simctl list devices available
+```
+
+To automatically wait for a device to finish booting before running tools, use `simulator_boot` with `waitForBoot: true`.
+
+</Accordion>
+
+<Accordion title="Accessibility permission errors">
+
+Preflight uses accessibility APIs to read the UI hierarchy and inject input events. macOS requires explicit permission for this.
+
+<Steps>
+  <Step title="Open System Settings">
+    Go to **System Settings → Privacy & Security → Accessibility**.
+  </Step>
+
+  <Step title="Add your terminal or IDE">
+    Click the `+` button and add the application that runs your MCP client. This is typically:
+
+    - **Terminal.app** or **iTerm2** — if running Claude Code or any CLI-based MCP client
+    - **Cursor** — if using Cursor
+    - **Windsurf** — if using Windsurf
+    - **Code** (VS Code) — if using VS Code with Cline or Continue
+  </Step>
+
+  <Step title="Re-enable the toggle">
+    If the app is already listed but the toggle is off, turn it on. If it's on but still failing, toggle it off and on again.
+  </Step>
+
+  <Step title="Restart the MCP server">
+    Permission changes take effect on the next server process start. Restart your MCP client or reload the server from its settings panel.
+  </Step>
+</Steps>
+
+</Accordion>
+
+<Accordion title="Swift binary build errors">
+
+`npm run build` compiles both the TypeScript source and the Swift CGEvent binary (`src/helpers/mouse-events.swift → dist/mouse-events`). Build errors can come from either step.
+
+**TypeScript errors** — check your Node.js version:
+
+```bash
+node --version  # must be 18 or higher
+```
+
+If below 18, install a current LTS version via [nvm](https://github.com/nvm-sh/nvm) or the Node.js installer.
+
+**Swift compiler errors** — verify Xcode Command Line Tools are installed:
+
+```bash
+xcode-select --install
+```
+
+Then confirm `swiftc` is available:
+
+```bash
+swiftc --version
+```
+
+**Full rebuild:**
+
+```bash
+npm run build
+```
+
+This runs `tsc` followed by `swiftc src/helpers/mouse-events.swift -o dist/mouse-events`. Both outputs must succeed for the server to start correctly.
+
+<Warning>
+  If `dist/mouse-events` is missing and idb is not installed, tap and swipe tools will fail at runtime. Always run `npm run build` (not `npm run dev`) before deploying.
+</Warning>
+
+</Accordion>
+
+<Accordion title="Node.js version too old">
+
+Preflight requires Node.js 18 or higher. It uses native ESM (`"type": "module"` in `package.json`) and Node.js built-ins that are not available in older versions.
+
+**Check your version:**
+
+```bash
+node --version
+```
+
+**Install Node.js 18+ via nvm:**
+
+```bash
+nvm install 18
+nvm use 18
+```
+
+**Or download from nodejs.org** and ensure the MCP client's `PATH` points to the correct Node.js binary.
+
+<Note>
+  Some MCP clients launch the server with the system Node.js, which may differ from your shell's active version. Specify the full path to the Node.js binary in your MCP config's `command` field if needed, e.g. `"/Users/you/.nvm/versions/node/v18.20.0/bin/node"`.
+</Note>
+
+</Accordion>
+
+<Accordion title="Verbose debug logging">
+
+When you need to understand exactly what Preflight is doing — which idb commands it's running, what coordinates it's computing, or why a tool call failed — enable debug logging.
+
+**Set LOG_LEVEL=debug in your MCP config:**
+
+```json
+{
+  "mcpServers": {
+    "preflight": {
+      "command": "node",
+      "args": ["/path/to/Preflight/dist/index.js"],
+      "env": {
+        "LOG_LEVEL": "debug",
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+Debug logs are written to stderr in this format:
+
+```
+[2026-03-25T10:00:00.000Z] [DEBUG] [idb:tap] Running: idb ui tap --udid ABC123 200 400
+[2026-03-25T10:00:00.000Z] [DEBUG] [tool:simulator_tap] Completed in 312ms, success=true
+```
+
+Most MCP clients expose server stderr in a logs panel. In Cursor, check **Settings → MCP → preflight → Logs**. In VS Code with Cline, open the Output panel and select the Cline channel.
+
+<Tip>
+  Switch back to `LOG_LEVEL=info` (the default) once you've diagnosed the issue. Debug mode is verbose and adds noise to the client's log output.
+</Tip>
+
+</Accordion>
+
+</AccordionGroup>

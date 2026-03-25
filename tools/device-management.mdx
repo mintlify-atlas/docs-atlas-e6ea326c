@@ -1,0 +1,218 @@
+---
+title: 'Device management'
+description: 'Boot, shut down, erase, and inspect iOS Simulator devices. Six tools for managing the full device lifecycle.'
+---
+
+These six tools give you full control over simulator device state — from booting a fresh device to factory-resetting it when you need a clean slate.
+
+---
+
+## simulator_boot
+
+Boot an iOS Simulator device by name or UDID. Automatically opens Simulator.app and, by default, waits until the device reaches the `Booted` state before returning.
+
+### Parameters
+
+<ParamField path="deviceId" type="string" required>
+  The device name (e.g., `"iPhone 16 Pro"`) or UDID to boot. Use `simulator_list_devices` to find available devices.
+</ParamField>
+
+<ParamField path="waitForBoot" type="boolean" default="true">
+  When `true`, the tool polls for up to 60 seconds until the device reaches `Booted` state before returning. Set to `false` to return immediately after issuing the boot command.
+</ParamField>
+
+### Returns
+
+A confirmation message with the device name and UDID when the device is ready, or a warning if boot did not complete within 60 seconds.
+
+### Example prompts
+
+```
+Boot the iPhone 16 Pro simulator.
+```
+
+```
+Boot the simulator with UDID 12345678-ABCD-1234-EFGH-123456789ABC and don't wait for it to finish.
+```
+
+---
+
+## simulator_shutdown
+
+Shut down a running simulator device.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  The device UDID, name, or `"booted"`. Defaults to the currently booted device.
+</ParamField>
+
+### Returns
+
+A confirmation that the device shut down successfully.
+
+### Example prompts
+
+```
+Shut down the booted simulator.
+```
+
+```
+Shut down the iPhone 15 simulator.
+```
+
+---
+
+## simulator_erase
+
+Factory-reset a simulator device. Erases all installed apps, user data, and settings, returning the device to its out-of-box state.
+
+<Warning>
+  This action is **irreversible**. All app data, installed apps, and settings are permanently deleted.
+</Warning>
+
+### Parameters
+
+<ParamField path="deviceId" type="string" required>
+  The device UDID or name to erase.
+</ParamField>
+
+### Returns
+
+A confirmation that the factory reset completed.
+
+### Example prompts
+
+```
+Erase the iPhone 16 Pro simulator to start fresh.
+```
+
+---
+
+## simulator_open_url
+
+Open a URL or deep link in the booted simulator. Works with `https://` URLs (opens in Safari) and custom scheme deep links (e.g., `myapp://screen`).
+
+### Parameters
+
+<ParamField path="url" type="string" required>
+  The URL or deep link to open. Examples: `"https://example.com"`, `"myapp://onboarding"`, `"tel:+15555551234"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  The device UDID, name, or `"booted"`. Defaults to the currently booted device.
+</ParamField>
+
+### Returns
+
+A confirmation with the URL that was opened.
+
+### Example prompts
+
+```
+Open https://example.com in the simulator.
+```
+
+```
+Trigger the deep link myapp://dashboard/analytics in the simulator.
+```
+
+<Tip>
+  Deep links only work if the target app is already installed. Use `simulator_install_app` first if the app isn't on the device yet.
+</Tip>
+
+---
+
+## simulator_open_simulator
+
+Open the Simulator.app application. Useful when Simulator.app is not yet visible on screen.
+
+### Parameters
+
+This tool takes no parameters.
+
+### Returns
+
+A confirmation that Simulator.app was opened.
+
+### Example prompts
+
+```
+Open the Simulator app.
+```
+
+<Note>
+  `simulator_boot` already opens Simulator.app automatically. You only need this tool if Simulator.app was closed after a device was booted.
+</Note>
+
+---
+
+## simulator_get_booted_sim_id
+
+Get the UDID of the currently booted simulator. Useful when you need to pass a specific UDID to other tools or scripts.
+
+### Parameters
+
+This tool takes no parameters.
+
+### Returns
+
+The UDID string of the first booted simulator, or a message indicating no booted simulator was found.
+
+### Example prompts
+
+```
+What is the UDID of the booted simulator?
+```
+
+```
+Get the current simulator's UDID so I can use it in my build script.
+```
+
+---
+
+## Device lifecycle workflow
+
+A typical workflow to go from nothing to a ready-to-test simulator:
+
+<Steps>
+  <Step title="List available devices">
+    Find the right device name or UDID.
+
+    ```
+    List all available iOS simulators.
+    ```
+  </Step>
+  <Step title="Boot the device">
+    Boot the device and wait for it to be ready.
+
+    ```
+    Boot the iPhone 16 Pro simulator.
+    ```
+  </Step>
+  <Step title="Install your app">
+    Install your `.app` bundle or `.ipa` file.
+
+    ```
+    Install the app at ./build/MyApp.app on the booted simulator.
+    ```
+  </Step>
+  <Step title="Test">
+    Launch the app, run interactions, check logs.
+
+    ```
+    Launch com.example.MyApp and take a screenshot.
+    ```
+  </Step>
+  <Step title="Shut down when done">
+    Free up resources when your test session ends.
+
+    ```
+    Shut down the booted simulator.
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  If you need a completely clean environment before testing (e.g., for onboarding flows), use `simulator_erase` after shutting down and before booting again.
+</Tip>

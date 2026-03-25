@@ -1,0 +1,84 @@
+---
+title: VS Code
+description: Set up Preflight MCP with VS Code using GitHub Copilot, Cline, or other MCP-compatible extensions.
+---
+
+VS Code supports MCP servers through GitHub Copilot and popular extensions like Cline. Choose the config that matches the extension you use.
+
+<Steps>
+  <Step title="Build Preflight">
+    If you haven't already, clone and build the server:
+
+    ```bash
+    git clone https://github.com/EthanAckerman-git/Preflight.git
+    cd Preflight
+    npm install
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Add the config for your extension">
+    <Tabs>
+      <Tab title="GitHub Copilot (.vscode/mcp.json)">
+        Create `.vscode/mcp.json` in your project root:
+
+        ```json
+        {
+          "servers": {
+            "preflight": {
+              "command": "node",
+              "args": ["/path/to/Preflight/dist/index.js"],
+              "env": {
+                "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+              }
+            }
+          }
+        }
+        ```
+
+        <Note>
+          The Copilot config uses `servers` (not `mcpServers`) as the top-level key.
+        </Note>
+      </Tab>
+
+      <Tab title="Cline extension">
+        Edit the Cline global settings file:
+
+        ```
+        ~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json
+        ```
+
+        Add the Preflight entry:
+
+        ```json
+        {
+          "mcpServers": {
+            "preflight": {
+              "command": "node",
+              "args": ["/path/to/Preflight/dist/index.js"],
+              "env": {
+                "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+              }
+            }
+          }
+        }
+        ```
+      </Tab>
+    </Tabs>
+
+    Replace `/path/to/Preflight/dist/index.js` with the absolute path to the built server on your machine.
+
+    <Note>
+      If you installed idb via pip, add your Python bin directory to `PATH`. For example:
+      `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:~/Library/Python/3.x/bin`
+    </Note>
+  </Step>
+
+  <Step title="Reload VS Code">
+    Restart VS Code or reload the window (`Cmd+Shift+P` → **Developer: Reload Window**) to pick up the new config.
+  </Step>
+</Steps>
+
+<Tip>
+  The Continue extension and other MCP-compatible VS Code extensions also work with Preflight using the stdio transport. Check your extension's documentation for its MCP config file location and use the same `command`/`args`/`env` structure shown above.
+</Tip>

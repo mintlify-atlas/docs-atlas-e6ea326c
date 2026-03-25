@@ -1,0 +1,77 @@
+---
+title: Introduction
+description: The most comprehensive MCP server for iOS Simulator automation — 57 tools for AI-powered iOS development and testing.
+---
+
+# Preflight MCP
+
+Preflight is an MCP (Model Context Protocol) server that gives AI agents full control over iOS Simulators. Connect it to Claude, Cursor, Windsurf, VS Code, or any MCP-compatible tool and get complete programmatic access to iOS Simulators — tap, swipe, type, read accessibility trees, inspect app data, capture screenshots, record video, manage devices, and debug apps in real time.
+
+**57 tools across 10 categories.** Zero cursor interference — works silently in the background while you use your Mac.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get Preflight running in under 5 minutes
+  </Card>
+  <Card title="IDE Setup" icon="wrench" href="/setup/claude-code">
+    Connect to Claude Code, Cursor, Windsurf, VS Code, and more
+  </Card>
+  <Card title="Tools Reference" icon="list" href="/tools/overview">
+    Browse all 57 tools organized by category
+  </Card>
+  <Card title="Design Philosophy" icon="lightbulb" href="/tools/design-philosophy">
+    Accessibility-first, Playwright-inspired approach
+  </Card>
+</CardGroup>
+
+## Why Preflight?
+
+<CardGroup cols={2}>
+  <Card title="No disk clutter" icon="trash">
+    Screenshots and video frames return directly in chat — no folders filling up your Desktop.
+  </Card>
+  <Card title="AI-optimized" icon="brain">
+    Images compressed for minimal token usage. Video extracts key frames — most AI models can't view video files directly.
+  </Card>
+  <Card title="Accessibility-first" icon="eye">
+    Like Playwright's `browser_snapshot`, use `simulator_snapshot` to understand the screen without vision models.
+  </Card>
+  <Card title="Cursor-free" icon="arrow-pointer">
+    Touch injection via idb (IndigoHID) — your Mac cursor stays put while the simulator receives real iOS touch events.
+  </Card>
+</CardGroup>
+
+## Tool Categories
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| Observation | 6 | Screenshots, device listing, app info, clipboard, screen geometry |
+| User Interaction | 6 | Tap, swipe, long press, type, key presses, navigation |
+| Playwright-Inspired | 3 | Accessibility snapshot, wait for element, element exists |
+| Device Management | 6 | Boot, shutdown, erase, URL/deep link opening |
+| App Management | 4 | Install, launch, terminate, uninstall |
+| Debugging & Diagnostics | 9 | Logs, file browsing, crash reports, accessibility audit |
+| System Simulation | 5 | GPS, push notifications, clipboard, media, permissions |
+| UI Configuration | 4 | Dark mode, status bar, video recording |
+| Advanced Debugging & Testing | 14 | Dynamic Type, biometric, location routes, UserDefaults, keychain |
+
+## Compatibility
+
+Preflight works with any MCP-compatible client:
+
+- **Claude Code** — Official Anthropic CLI
+- **Cursor** — AI-powered code editor
+- **Windsurf** — Codeium's AI IDE
+- **VS Code** — with Copilot, Cline, or Continue extensions
+- **Zed** — High-performance editor with AI features
+- **Any MCP client** — Uses standard stdio transport
+
+## Requirements
+
+- macOS with Xcode and iOS Simulator installed
+- Node.js 18+
+- [Facebook idb](https://fbidb.io/) (recommended for cursor-free operation)
+
+<Note>
+Without idb, Preflight falls back to CGEvent mouse injection — this works but briefly moves your Mac cursor during touch events.
+</Note>

@@ -1,0 +1,227 @@
+---
+title: Observation tools
+description: Six tools for reading simulator state — screenshots, device listing, app info, clipboard, and screen geometry.
+---
+
+The observation tools give you a read-only view into the simulator: capture screenshots, enumerate devices and apps, fetch metadata, read the clipboard, and inspect the coordinate system. Use these tools to gather context before issuing interaction commands.
+
+## simulator_screenshot
+
+Captures a JPEG screenshot of the simulator screen and returns it inline in chat. Images are compressed to approximately 200–400 KB — enough detail for UI analysis without wasting context window tokens.
+
+<Note>
+JPEG is the default and recommended format for AI agents. The tool always captures a PNG internally, then applies JPEG compression (quality 60, hard cap 1.5 MB).
+</Note>
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+<ParamField path="format" type="string">
+  Image format: `"jpeg"` (default) or `"png"`. JPEG is recommended for AI — smaller files, faster responses.
+</ParamField>
+
+<ParamField path="display" type="string">
+  Display to capture: `"internal"` (default) or `"external"`.
+</ParamField>
+
+<ParamField path="mask" type="string">
+  How to handle the non-rectangular display mask: `"ignored"`, `"alpha"`, or `"black"`.
+</ParamField>
+
+<ParamField path="savePath" type="string">
+  Optional path to save a copy of the screenshot to disk. The image is always returned inline regardless of this parameter.
+</ParamField>
+
+### Return value
+
+Returns an inline image followed by a text summary — `Screenshot captured (jpeg, 312KB)`. If `savePath` is set, the summary includes `Saved to: /path/to/file`.
+
+### Example
+
+```
+Take a screenshot of the current simulator screen.
+```
+
+```
+Take a screenshot and save it to /tmp/login-screen.jpg
+```
+
+---
+
+## simulator_list_devices
+
+Lists all available iOS Simulator devices with their name, UDID, state, and runtime.
+
+### Parameters
+
+<ParamField path="filter" type="string">
+  Filter the device list: `"all"` (default), `"booted"` (running devices only), or `"available"` (available but not necessarily running).
+</ParamField>
+
+### Return value
+
+A pipe-delimited table:
+
+```
+Name | UDID | State | Runtime
+---|---|---|---
+iPhone 16 Pro | A1B2C3... | Booted | iOS 18 0
+iPhone 15 | D4E5F6... | Shutdown | iOS 17 5
+```
+
+### Example
+
+```
+List all booted simulators.
+```
+
+---
+
+## simulator_list_apps
+
+Lists all apps installed on the simulator with their display names and bundle IDs.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+<ParamField path="includeSystem" type="boolean">
+  Include Apple system apps (Settings, Safari, etc.). Defaults to `false` — only user-installed apps are returned.
+</ParamField>
+
+### Return value
+
+A sorted list of apps:
+
+```
+Installed apps (3):
+
+My App — com.example.myapp (v2.1.0)
+Test App — com.example.testapp (v1.0.0)
+WebKit — com.apple.webkit
+```
+
+### Example
+
+```
+List all installed apps on the simulator, including system apps.
+```
+
+---
+
+## simulator_app_info
+
+Fetches detailed metadata about a specific installed app: bundle ID, display name, version, application type, bundle path, data container path, minimum iOS version, and SDK.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The app's bundle identifier, for example `"com.apple.mobilesafari"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Bundle ID:   com.example.myapp
+Name:        My App
+Version:     2.1.0 (42)
+Type:        User
+Bundle Path: /path/to/MyApp.app
+Data Path:   /path/to/data/container
+SDK:         iphonesimulator18.0
+Min iOS:     16.0
+```
+
+### Example
+
+```
+Get the app info for com.example.myapp — I need to find its data container path.
+```
+
+---
+
+## simulator_get_clipboard
+
+Reads the current text content of the simulator's clipboard. Useful for verifying copy/paste behavior in your app.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+The clipboard text as a string, or `"(clipboard is empty)"` if the clipboard has no content.
+
+### Example
+
+```
+Read the simulator clipboard to verify that my app copied the correct URL.
+```
+
+<Tip>
+Use `simulator_set_clipboard` from the System Simulation tools to write text to the clipboard before testing paste functionality.
+</Tip>
+
+---
+
+## simulator_get_screen_info
+
+Returns diagnostic information about the Simulator window geometry and the mapping between simulator screen points and macOS screen coordinates. Use this when tap or swipe commands are landing in the wrong place.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Screen Mapping Info:
+
+Window position: (120, 60)
+Window size: 430 x 932
+Title bar height: 28
+Content area: 430 x 904
+
+Device screen: 393 x 852 points
+Scale factor: 2x
+
+Coordinate mapping:
+  scaleX: 1.0941
+  scaleY: 1.0610
+
+Example: sim(0,0) → mac(120, 88)
+Example: sim(393,852) → mac(550, 992)
+```
+
+The output includes:
+
+| Field | Description |
+|---|---|
+| Window position | Top-left corner of the Simulator.app window in macOS screen coordinates |
+| Content area | Pixel dimensions of the simulator's display area (excluding title bar) |
+| Device screen | The simulated device's logical point dimensions (what you use for `simulator_tap`) |
+| Scale factor | Retina multiplier (usually 2x or 3x) |
+| scaleX / scaleY | Conversion factors from simulator points to macOS pixels |
+
+### Example
+
+```
+Get the screen info — my taps are landing in the wrong position and I need to debug the coordinate mapping.
+```
+
+<Warning>
+Make sure Simulator.app is running and the window is visible before calling this tool. It reads the live window geometry from the Simulator process.
+</Warning>

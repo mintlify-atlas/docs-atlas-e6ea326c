@@ -1,0 +1,381 @@
+---
+title: Debugging & Diagnostics
+description: Query logs, read app files, retrieve crash reports, inspect the accessibility tree, and run diagnostics on your iOS Simulator.
+---
+
+The debugging and diagnostics tools give you deep visibility into your running app: from live log streams and crash reports to the full iOS accessibility tree and on-disk app data.
+
+## simulator_get_logs
+
+Query device logs using Apple's unified logging system. You can narrow results by process, subsystem, log level, time range, and message content.
+
+### Parameters
+
+<ParamField path="process" type="string">
+  Filter by process name. For example, `"MyApp"` or `"SpringBoard"`.
+</ParamField>
+
+<ParamField path="subsystem" type="string">
+  Filter by log subsystem. For example, `"com.apple.UIKit"`.
+</ParamField>
+
+<ParamField path="category" type="string">
+  Filter by log category.
+</ParamField>
+
+<ParamField path="level" type="string">
+  Minimum log level. One of `debug`, `info`, `default`, `error`, `fault`. Defaults to `default`.
+</ParamField>
+
+<ParamField path="since" type="string">
+  Time range to look back. Use relative durations like `"5m"`, `"1h"`, `"30s"`, or an ISO date string. Defaults to `"1m"`.
+</ParamField>
+
+<ParamField path="messageContains" type="string">
+  Only return log lines whose message contains this string.
+</ParamField>
+
+<ParamField path="limit" type="number">
+  Maximum number of log lines to return. Defaults to `100`. The most recent lines are kept when the total exceeds the limit.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Get the last 5 minutes of error-level logs from your app
+simulator_get_logs process="MyApp" level="error" since="5m" limit=50
+```
+
+---
+
+## simulator_stream_logs
+
+Start a live log stream and read from its buffer on demand. Uses a start/read/stop lifecycle so you can capture logs across a sequence of interactions.
+
+### Parameters
+
+<ParamField path="action" type="string" required>
+  Lifecycle command. One of:
+  - `"start"` — begin streaming logs into a buffer
+  - `"read"` — return the current buffer contents
+  - `"stop"` — end the stream and discard the buffer
+</ParamField>
+
+<ParamField path="process" type="string">
+  Filter streamed logs by process name.
+</ParamField>
+
+<ParamField path="level" type="string">
+  Minimum log level. One of `debug`, `info`, `default`, `error`, `fault`.
+</ParamField>
+
+<ParamField path="bufferSize" type="number">
+  Maximum lines to keep in the rolling buffer. Defaults to `200`. Oldest lines are dropped when the buffer is full.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Usage pattern
+
+```bash
+# 1. Start streaming
+simulator_stream_logs action="start" process="MyApp"
+
+# 2. Trigger the feature you want to observe, then read the buffer
+simulator_stream_logs action="read" process="MyApp"
+
+# 3. Stop when done
+simulator_stream_logs action="stop" process="MyApp"
+```
+
+<Note>
+  The `process` parameter is part of the stream identity key. Use the same `process` value across `start`, `read`, and `stop` calls.
+</Note>
+
+---
+
+## simulator_get_app_container
+
+Returns the absolute filesystem path to an app's container directory. Use this to locate the app bundle, its private data sandbox, or a shared app group container.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The app's bundle identifier, for example `"com.example.MyApp"`.
+</ParamField>
+
+<ParamField path="containerType" type="string">
+  Which container to resolve. One of:
+  - `"data"` (default) — the app's private data sandbox (`/var/mobile/Containers/Data/...`)
+  - `"app"` — the installed app bundle (`.app` directory)
+  - `"groups"` — shared app group containers
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Find where the app stores its data
+simulator_get_app_container bundleId="com.example.MyApp" containerType="data"
+# → data container: /Users/.../CoreSimulator/Devices/.../data/Containers/Data/Application/.../
+```
+
+---
+
+## simulator_list_app_files
+
+List files inside an app's data container. Explores up to 4 directory levels deep. Returns names, sizes, and permissions — useful for finding databases, plists, and cached files.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The app's bundle identifier.
+</ParamField>
+
+<ParamField path="subPath" type="string">
+  Subdirectory within the data container to list. For example, `"Documents"`, `"Library/Preferences"`, or `"Caches"`. Omit to list the entire container root.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# List all files in the app's Documents directory
+simulator_list_app_files bundleId="com.example.MyApp" subPath="Documents"
+
+# Browse the Library directory for preference plists
+simulator_list_app_files bundleId="com.example.MyApp" subPath="Library/Preferences"
+```
+
+---
+
+## simulator_read_app_file
+
+Read a file from an app's data container. Automatically handles different file types:
+
+- **Plists** — converted to JSON using `plutil`
+- **SQLite databases** (`.sqlite`, `.db`, `.sqlite3`) — returns table names and `CREATE` schema for each table
+- **Text files** — returned as plain text, truncated at 10,000 characters
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The app's bundle identifier.
+</ParamField>
+
+<ParamField path="filePath" type="string" required>
+  Path relative to the app's data container root. For example:
+  - `"Documents/data.json"`
+  - `"Library/Preferences/com.example.MyApp.plist"`
+  - `"Library/Application Support/myapp.sqlite"`
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Read a preferences plist (returned as JSON)
+simulator_read_app_file bundleId="com.example.MyApp" filePath="Library/Preferences/com.example.MyApp.plist"
+
+# Inspect a SQLite database schema
+simulator_read_app_file bundleId="com.example.MyApp" filePath="Library/Application Support/store.sqlite"
+```
+
+<Warning>
+  Files larger than 1 MB are rejected. Use `simulator_list_app_files` first to confirm file sizes before reading.
+</Warning>
+
+---
+
+## simulator_get_crash_logs
+
+Retrieve crash reports from `~/Library/Logs/DiagnosticReports/`. Each report includes the exception type, stack traces, and thread states — the same output you'd see in Xcode's Crashes organizer.
+
+### Parameters
+
+<ParamField path="processName" type="string">
+  Filter reports by process or app name. Case-insensitive substring match.
+</ParamField>
+
+<ParamField path="since" type="string">
+  Only include crashes on or after this ISO date. For example, `"2026-03-22"`.
+</ParamField>
+
+<ParamField path="limit" type="number">
+  Maximum number of crash reports to return. Defaults to `5`. Reports are sorted most-recent first.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Get the 3 most recent crashes for MyApp
+simulator_get_crash_logs processName="MyApp" limit=3
+```
+
+---
+
+## simulator_diagnose
+
+Generate a diagnostic summary of your simulator environment. Returns Xcode and toolchain versions, disk usage for all simulator data, and details about every currently booted device.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example output
+
+```
+Simulator Diagnostics:
+
+Booted device: iPhone 16 Pro (ABC123...)
+Runtime: com.apple.CoreSimulator.SimRuntime.iOS-18-2
+Device type: com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro
+
+Simulator disk usage: 14G   /Users/.../CoreSimulator/Devices
+
+Xcode toolchain: xcrun version 64
+Xcode: Xcode 16.2 / Build version 16C5032a
+```
+
+---
+
+## simulator_accessibility_audit
+
+Capture the full iOS accessibility tree for the current simulator screen. Returns every accessible element with its role, label, value, position, and size.
+
+When [idb](https://fbidb.io/) is installed, this tool uses `idb describe-all` to return real native UIKit elements (`UIButton`, `UILabel`, etc.). Without idb, it falls back to a 4-level AppleScript traversal of the Simulator window hierarchy.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example output
+
+```
+iOS Accessibility Tree via idb (42 elements):
+
+UIButton | label="Sign In" @187,612 44x44
+UITextField | label="Email" val="test@example.com" @20,320 353x44
+UILabel | label="Welcome back" @20,200 353x28
+...
+```
+
+<Tip>
+  Use `simulator_accessibility_audit` together with `simulator_snapshot` for the most complete picture of the screen. The audit is ideal for discovering what elements are tappable and where they are.
+</Tip>
+
+---
+
+## simulator_describe_point
+
+Return the accessibility element located at a specific coordinate on the simulator screen. Useful for checking what's at a particular point before tapping, or for verifying tap targets.
+
+<Note>
+  This tool requires idb to be installed. Without idb it will return an installation prompt.
+</Note>
+
+### Parameters
+
+<ParamField path="x" type="number" required>
+  X coordinate in simulator screen points.
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate in simulator screen points.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# What element is at (196, 612)?
+simulator_describe_point x=196 y=612
+# → Accessibility element at (196, 612):
+#   UIButton | "Sign In" @187,612 44x44
+```
+
+---
+
+## Debugging Workflow
+
+A common debugging workflow goes from crash report to logs to file inspection to environment diagnostics.
+
+<Steps>
+  <Step title="Check for crash reports">
+    Start by looking for recent crashes. Filter by your app's process name to narrow results:
+
+    ```bash
+    simulator_get_crash_logs processName="MyApp" limit=3
+    ```
+
+    The output includes the exception type, fault address, and a full stack trace for each thread.
+  </Step>
+
+  <Step title="Query device logs around the crash time">
+    Use the crash timestamp from the report to pull logs for the minutes before it occurred:
+
+    ```bash
+    simulator_get_logs process="MyApp" level="error" since="10m"
+    ```
+
+    Add `messageContains` to filter for a specific error message you spotted in the crash report:
+
+    ```bash
+    simulator_get_logs process="MyApp" messageContains="CoreData" since="10m"
+    ```
+  </Step>
+
+  <Step title="Inspect app data files">
+    If the crash involves persistence, browse the data container and read the relevant database or plist:
+
+    ```bash
+    # Find the database file
+    simulator_list_app_files bundleId="com.example.MyApp" subPath="Library/Application Support"
+
+    # Read its schema
+    simulator_read_app_file bundleId="com.example.MyApp" filePath="Library/Application Support/store.sqlite"
+    ```
+  </Step>
+
+  <Step title="Run a full diagnostic">
+    Confirm your Xcode version and check disk usage — simulator data can grow large and cause unexpected failures:
+
+    ```bash
+    simulator_diagnose
+    ```
+  </Step>
+
+  <Step title="Audit the accessibility tree">
+    If the issue is UI-related, capture the full accessibility tree to see exactly what elements are on screen:
+
+    ```bash
+    simulator_accessibility_audit
+    ```
+  </Step>
+</Steps>

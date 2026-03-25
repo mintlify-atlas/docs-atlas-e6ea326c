@@ -1,0 +1,292 @@
+---
+title: Interaction tools
+description: Six tools for simulating user input — tap, swipe, long press, text entry, key presses, and back navigation.
+---
+
+The interaction tools send input events to the simulator. All coordinates are in simulator screen points — the same coordinate system used in Xcode and on device (for example, 0–393 horizontally on an iPhone 16 Pro).
+
+## Touch injection pipeline
+
+Touches are delivered via two paths depending on your setup:
+
+```
+simulator_tap(x=200, y=400)
+    │
+    ├─ idb available? ──YES──► idb ui tap --udid <UDID> 200 400
+    │                           (IndigoHID → real iOS touch event)
+    │                           (zero cursor movement)
+    │
+    └─ idb unavailable? ──► coordinate mapper → macOS screen coords
+                             → Swift CGEvent binary → mouse down/up
+                             (briefly moves Mac cursor)
+```
+
+**idb (recommended):** Facebook's `idb` CLI injects events directly into the simulator kernel via IndigoHID. Your Mac cursor never moves. Install with:
+
+```bash
+brew tap facebook/fb
+brew install idb-companion
+pip3 install fb-idb
+```
+
+**CGEvent fallback:** If idb is not installed, the tool maps simulator coordinates to macOS screen coordinates and uses a native Swift binary to send CGEvent mouse events. This works, but briefly moves your cursor and requires Accessibility permission.
+
+The response text always indicates which path was used — `[cursor-free]` for idb or `[CGEvent fallback]`.
+
+---
+
+## simulator_tap
+
+Taps at a point on the simulator screen. Use `simulator_snapshot` or `simulator_screenshot` first to identify the coordinates you want to tap.
+
+### Parameters
+
+<ParamField path="x" type="number" required>
+  X coordinate in simulator screen points.
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate in simulator screen points.
+</ParamField>
+
+<ParamField path="duration" type="number">
+  Press duration in seconds (decimals allowed, e.g. `0.5`). Omit for a normal instantaneous tap. For durations longer than 0.3s when using the CGEvent fallback, the tool automatically uses the long-press path.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Tapped at (196, 420) via idb [cursor-free]
+```
+
+### Example
+
+```
+Take a snapshot, find the "Sign In" button coordinates, then tap it.
+```
+
+```
+Tap at (196, 420) on the booted simulator.
+```
+
+---
+
+## simulator_swipe
+
+Performs a swipe gesture from one point to another. Use this for scrolling, pulling-to-refresh, or triggering edge gestures.
+
+<Tip>
+To trigger iOS's left-edge swipe-back gesture, set `startX` to `1`. iOS recognizes edge touches within approximately 20 pt of the left edge. Use `durationMs` of 400–600 ms for a natural-feeling edge swipe.
+</Tip>
+
+### Parameters
+
+<ParamField path="startX" type="number" required>
+  Start X in simulator screen points. Use `1` to trigger the iOS left-edge swipe-back gesture.
+</ParamField>
+
+<ParamField path="startY" type="number" required>
+  Start Y in simulator screen points.
+</ParamField>
+
+<ParamField path="endX" type="number" required>
+  End X in simulator screen points.
+</ParamField>
+
+<ParamField path="endY" type="number" required>
+  End Y in simulator screen points.
+</ParamField>
+
+<ParamField path="durationMs" type="number">
+  Swipe duration in milliseconds. Defaults to `300`. Use 400–600 ms for edge-swipe-back gestures.
+</ParamField>
+
+<ParamField path="delta" type="number">
+  Step size in pixels between touch points (idb only). The idb backend uses this to control swipe granularity. Has no effect when using the CGEvent fallback.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Swiped from (196,600) to (196,200) via idb [cursor-free]
+```
+
+### Examples
+
+<CodeGroup>
+
+```text Scroll down
+Swipe from (196, 600) to (196, 200) to scroll the list down.
+```
+
+```text Edge swipe back
+Swipe from (1, 400) to (150, 400) with duration 500ms to go back.
+```
+
+```text Pull to refresh
+Swipe from (196, 200) to (196, 500) to pull-to-refresh.
+```
+
+</CodeGroup>
+
+---
+
+## simulator_long_press
+
+Performs a long press at a point. Useful for opening context menus, initiating drag-and-drop, or triggering any gesture that requires a sustained touch.
+
+### Parameters
+
+<ParamField path="x" type="number" required>
+  X coordinate in simulator screen points.
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate in simulator screen points.
+</ParamField>
+
+<ParamField path="durationMs" type="number">
+  Press duration in milliseconds. Defaults to `1000` (1 second).
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Long pressed at (196, 350) for 1000ms via idb [cursor-free]
+```
+
+### Example
+
+```
+Long press at (196, 350) for 800ms to open the context menu.
+```
+
+---
+
+## simulator_type_text
+
+Types text into the currently focused text field. You must tap a text field first to focus it before calling this tool.
+
+<Note>
+Text input uses AppleScript to send keystrokes to the Simulator.app window. This works for standard characters. For special characters or emoji, tap the field first and use the on-screen keyboard if needed.
+</Note>
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  The text to type into the focused field.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Typed "test@example.com"
+```
+
+### Example
+
+```
+Tap the email field at (196, 300), then type "test@example.com".
+```
+
+---
+
+## simulator_press_key
+
+Presses a special key, optionally combined with modifier keys. Use this for keyboard shortcuts, form submission (Return), and navigation.
+
+### Parameters
+
+<ParamField path="key" type="string" required>
+  The key to press. Supported values:
+
+  | Category | Keys |
+  |---|---|
+  | Navigation | `return`, `escape`, `delete`, `tab`, `space` |
+  | Arrows | `up`, `down`, `left`, `right` |
+  | Cursor | `home`, `end`, `pageup`, `pagedown` |
+  | Function | `f1` through `f12` |
+</ParamField>
+
+<ParamField path="modifiers" type="string[]">
+  Modifier keys to hold while pressing. Supported values: `"command"`, `"shift"`, `"option"`, `"control"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Pressed return
+Pressed command+shift+h
+```
+
+### Examples
+
+<CodeGroup>
+
+```text Submit a form
+Press the Return key to submit the login form.
+```
+
+```text Keyboard shortcut
+Press Command+A to select all text in the field.
+```
+
+```text Dismiss keyboard
+Press Escape to dismiss the keyboard.
+```
+
+</CodeGroup>
+
+---
+
+## simulator_navigate_back
+
+Navigates back in the current app by sending the `Cmd+[` keyboard shortcut. This is the standard macOS back navigation shortcut recognized by UINavigationController and Safari.
+
+<Note>
+This is a workaround for the limitation that edge-swipe-back gestures can be unreliable with the CGEvent fallback. Prefer `simulator_swipe` with `startX=1` when idb is installed, as it produces a more authentic iOS gesture. Use this tool as a fallback.
+</Note>
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Return value
+
+```
+Sent back navigation command (Cmd+[). Works in Safari and apps with standard navigation.
+```
+
+If the keyboard shortcut fails and idb is available, the tool falls back to tapping the back button area at coordinates (30, 55).
+
+### Example
+
+```
+Navigate back to the previous screen.
+```
+
+<Tip>
+If neither the keyboard shortcut nor the tap fallback works for your app, use `simulator_accessibility_audit` or `simulator_snapshot` to find the exact coordinates of the back button, then tap it directly with `simulator_tap`.
+</Tip>

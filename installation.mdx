@@ -1,0 +1,254 @@
+---
+title: Installation
+description: Detailed guide to installing Preflight MCP, including Xcode setup, idb configuration, and verifying your build.
+---
+
+This page covers every step needed to get Preflight MCP installed and verified on your Mac.
+
+## Prerequisites
+
+### Xcode and iOS Simulator
+
+Preflight controls iOS Simulators through `xcrun simctl`, which ships with Xcode. You need:
+
+- **Xcode** installed from the Mac App Store or [developer.apple.com](https://developer.apple.com/xcode/)
+- **iOS Simulator** runtime — included with Xcode by default
+- **Xcode Command Line Tools** — run `xcode-select --install` if `xcrun` is not found
+
+Verify your Xcode setup:
+
+```bash
+xcrun simctl list devices
+```
+
+You should see a list of available simulator devices. If this command fails, Xcode is not properly configured.
+
+### Node.js 18+
+
+Preflight requires Node.js 18 or later. Check your version:
+
+```bash
+node --version
+```
+
+<CodeGroup>
+
+```bash Homebrew
+brew install node
+```
+
+```bash nvm
+nvm install 18
+nvm use 18
+```
+
+</CodeGroup>
+
+## Installing idb
+
+idb (IndigoHID) is Facebook's iOS Debug Bridge. Preflight uses it for cursor-free touch injection — taps and swipes happen through the real iOS HID layer without moving your Mac cursor.
+
+<Warning>
+  Without idb, Preflight falls back to a native Swift CGEvent binary (`dist/mouse-events`). This works, but briefly moves your Mac cursor during every touch event.
+</Warning>
+
+<Steps>
+  <Step title="Add the Facebook Homebrew tap">
+    ```bash
+    brew tap facebook/fb
+    ```
+  </Step>
+
+  <Step title="Install idb-companion">
+    idb-companion is the native daemon that runs alongside the simulator:
+
+    ```bash
+    brew install idb-companion
+    ```
+  </Step>
+
+  <Step title="Install the Python idb client">
+    The `idb` CLI tool is a Python package that communicates with idb-companion:
+
+    ```bash
+    pip3 install fb-idb
+    ```
+  </Step>
+
+  <Step title="Verify idb is available">
+    ```bash
+    which idb
+    ```
+
+    A typical output is `/usr/local/bin/idb` or `~/Library/Python/3.x/bin/idb`. Note this path — you'll need it for the PATH configuration below.
+  </Step>
+</Steps>
+
+## Build from Source
+
+Preflight is distributed as source and must be compiled before use. The build produces two artifacts:
+
+- **`dist/index.js`** — The MCP server (compiled from TypeScript)
+- **`dist/mouse-events`** — A native Swift binary used as the CGEvent fallback for touch injection
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/EthanAckerman-git/Preflight.git
+    cd Preflight
+    ```
+  </Step>
+
+  <Step title="Install Node.js dependencies">
+    ```bash
+    npm install
+    ```
+
+    The `postinstall` script checks whether `idb` is on your PATH. If it's not found, you'll see:
+
+    ```
+    [Preflight MCP] Optional: Install idb for cursor-free touch injection:
+      brew tap facebook/fb && brew install idb-companion
+      pip3 install fb-idb
+    ```
+
+    This is a reminder only — the install completes successfully regardless.
+  </Step>
+
+  <Step title="Run the build">
+    ```bash
+    npm run build
+    ```
+
+    This runs two commands in sequence:
+    1. `tsc` — Compiles all TypeScript in `src/` to JavaScript in `dist/`
+    2. `swiftc src/helpers/mouse-events.swift -o dist/mouse-events` — Compiles the Swift CGEvent binary
+
+    Both must succeed for the full feature set to be available.
+  </Step>
+</Steps>
+
+### What Gets Built
+
+After a successful build, the `dist/` directory contains:
+
+```
+dist/
+├── index.js           # MCP server entry point — run with: node dist/index.js
+├── mouse-events       # Native Swift binary for CGEvent touch fallback
+├── helpers/
+│   ├── idb.js         # Facebook idb CLI wrapper
+│   ├── simctl.js      # xcrun simctl wrapper
+│   ├── applescript.js # Keyboard input
+│   ├── coordinate-mapper.js
+│   └── logger.js
+└── tools/
+    ├── screenshot.js
+    ├── interaction.js
+    ├── device.js
+    ├── app.js
+    ├── system.js
+    ├── ui.js
+    ├── debug.js
+    ├── advanced.js
+    └── playwright.js
+```
+
+## Environment PATH Setup
+
+The MCP server process inherits its `PATH` from your MCP client's configuration — not from your shell. This means idb may not be found even if `which idb` works in your terminal.
+
+Always set `PATH` explicitly in your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "preflight": {
+      "command": "node",
+      "args": ["/path/to/Preflight/dist/index.js"],
+      "env": {
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+If idb was installed via pip and lives in `~/Library/Python/3.x/bin`, append that to the PATH value:
+
+```json
+"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/yourname/Library/Python/3.11/bin"
+```
+
+Alternatively, set `PREFLIGHT_IDB_PATH` to the absolute path of the idb binary:
+
+```json
+"env": {
+  "PREFLIGHT_IDB_PATH": "/Users/yourname/Library/Python/3.11/bin/idb"
+}
+```
+
+## Verifying the Installation
+
+### Check the server starts
+
+```bash
+node dist/index.js
+```
+
+The server starts and waits for MCP messages on stdio. No errors means the build is valid. Press `Ctrl+C` to stop.
+
+### Check idb is detected
+
+Once connected through your MCP client, ask your agent:
+
+> Run simulator_diagnose and check the output.
+
+`simulator_diagnose` returns Xcode version, disk usage, and booted device info. If idb is detected, touch tools will show `[cursor-free]` in their descriptions. If you see `[CGEvent fallback]`, idb is not on the PATH that the server process sees — revisit the PATH configuration above.
+
+### Check simctl works
+
+```bash
+xcrun simctl list devices booted
+```
+
+If this returns results, your Xcode setup is correct and Preflight can communicate with simulators.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="idb not detected — tools show [CGEvent fallback]">
+    1. Run `which idb` in your terminal to find the actual binary path.
+    2. Add that directory to the `PATH` env var in your MCP config.
+    3. Or set `PREFLIGHT_IDB_PATH` to the full path of the `idb` binary.
+    4. Restart your MCP client after making config changes.
+  </Accordion>
+
+  <Accordion title="Simulator not found">
+    1. Open Simulator.app: `open -a Simulator`
+    2. Boot a device via the UI, or run: `xcrun simctl boot "iPhone 16 Pro"`
+    3. Use `simulator_boot` through your MCP client to boot by name or UDID.
+  </Accordion>
+
+  <Accordion title="Accessibility permission errors">
+    The process running Preflight (your terminal, Claude Code, Cursor, etc.) needs Accessibility permission:
+
+    1. Open **System Settings → Privacy & Security → Accessibility**
+    2. Add your terminal app or IDE to the list
+    3. Restart the app after granting permission
+  </Accordion>
+
+  <Accordion title="swiftc not found during build">
+    The Swift compiler ships with Xcode. If `swiftc` is not found:
+
+    ```bash
+    xcode-select --install
+    ```
+
+    Or set the active Xcode path:
+
+    ```bash
+    sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+    ```
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,126 @@
+---
+title: Design philosophy
+description: The principles behind Preflight MCP — accessibility-first automation, cursor-free touch injection, and AI-optimized output with no disk clutter.
+---
+
+Preflight is inspired by [Playwright MCP](https://github.com/anthropics/mcp-server-playwright) for web automation. It brings the same structured, accessibility-first approach to iOS Simulator — so AI agents can automate iOS apps efficiently without needing a vision model for every interaction.
+
+## Accessibility-first
+
+The core idea: **read the accessibility tree before you tap anything.**
+
+In web automation, Playwright's `browser_snapshot` gives you a structured view of the DOM — roles, labels, positions — without requiring a screenshot. Preflight's `simulator_snapshot` does the same for iOS.
+
+When you use `simulator_snapshot`, you get:
+- Every visible UI element with its role (`UIButton`, `UILabel`, `UITextField`, etc.)
+- Accessibility labels and values
+- Screen coordinates for each element
+- The full hierarchy — no vision model required
+
+This makes automation more reliable. Instead of guessing pixel coordinates from a screenshot, you read the element label from the snapshot and use its reported position.
+
+<Tip>
+Use `simulator_snapshot` as your default way to understand the current screen. Fall back to `simulator_screenshot` only when you need to verify visual appearance (colors, images, layout).
+</Tip>
+
+## The recommended workflow
+
+<Steps>
+  <Step title="Snapshot the screen">
+    Call `simulator_snapshot` to read the accessibility tree. This tells you what elements are on screen, their labels, and their positions — with no vision model needed.
+
+    ```
+    simulator_snapshot()
+    ```
+  </Step>
+  <Step title="Interact using coordinates from the snapshot">
+    Use the positions reported by the snapshot to call `simulator_tap`, `simulator_swipe`, or `simulator_long_press`. You know exactly where to tap without guessing.
+
+    ```
+    simulator_tap(x=196, y=430)
+    ```
+  </Step>
+  <Step title="Screenshot for visual verification">
+    When you need to verify how something looks — a color change, an image, a layout — call `simulator_screenshot`. The image returns inline in chat, compressed for minimal token usage.
+
+    ```
+    simulator_screenshot()
+    ```
+  </Step>
+  <Step title="Wait before interacting after transitions">
+    After a navigation transition, modal presentation, or async operation, use `simulator_wait_for_element` to confirm the target element is on screen before you interact with it.
+
+    ```
+    simulator_wait_for_element(label="Sign In", timeout=5000)
+    ```
+  </Step>
+</Steps>
+
+## Touch injection pipeline
+
+Preflight injects touch events without moving your Mac cursor. When `simulator_tap` is called, it follows this path:
+
+```
+simulator_tap(x=200, y=400)
+    │
+    ├─ idb available? ──YES──► idb ui tap --udid <UDID> 200 400
+    │                           (IndigoHID → real iOS touch event)
+    │                           (zero cursor movement)
+    │
+    └─ idb unavailable? ──► coordinate mapper → macOS screen coords
+                             → Swift CGEvent binary → mouse down/up
+```
+
+When [Facebook idb](https://fbidb.io/) is installed, Preflight uses IndigoHID — the same internal touch injection mechanism used by Xcode's UI testing infrastructure. This sends a real iOS touch event directly to the simulator process, with no cursor movement on your Mac.
+
+Without idb, Preflight falls back to a native Swift binary that dispatches CGEvent mouse clicks at the mapped screen coordinates. This works, but briefly moves your cursor.
+
+<Note>
+Install idb for the best experience: `brew tap facebook/fb && brew install idb-companion && pip3 install fb-idb`. See [idb setup](/configuration/idb-setup) for details.
+</Note>
+
+## No disk clutter
+
+Preflight never writes files to disk unless you explicitly ask it to.
+
+- **Screenshots** return as base64-encoded JPEG data inline in the chat response — no files saved to your Desktop or Downloads folder.
+- **Video recordings** extract key frames as inline images when you call `simulator_stop_recording`. The raw video file is deleted unless you pass an optional `savePath`.
+
+This keeps your filesystem clean during long automation sessions and means you don't need to clean up after Preflight.
+
+## AI token optimization
+
+Preflight compresses screenshots to JPEG at a quality level optimized for AI consumption — typically 200–400 KB per image. This is small enough to keep token usage manageable across long sessions while retaining enough detail for visual verification.
+
+For video, extracting key frames instead of returning the full video file serves two purposes:
+1. Most AI models cannot process video files directly.
+2. Key frames use far fewer tokens than a raw video stream.
+
+## Comparison to Playwright MCP
+
+| Concept | Playwright MCP (web) | Preflight MCP (iOS) |
+|---|---|---|
+| Structured snapshot | `browser_snapshot` | `simulator_snapshot` |
+| Wait for element | `browser_wait_for` | `simulator_wait_for_element` |
+| Screenshot | `browser_screenshot` | `simulator_screenshot` |
+| Touch / click | `browser_click` | `simulator_tap` |
+| Type text | `browser_type` | `simulator_type_text` |
+| Navigate back | `browser_navigate_back` | `simulator_navigate_back` |
+
+Both tools follow the same principle: use the accessibility tree first, fall back to screenshots only when visual verification is needed.
+
+## Example prompts
+
+These prompts show the philosophy in action:
+
+**Accessibility-first workflow**
+> "Take a snapshot of the current screen to see what elements are available. Then tap the button labeled 'Sign In' and wait for the email text field to appear."
+
+**QA testing session**
+> "Boot the iPhone 16 Pro simulator, install my app at `./build/MyApp.app`, launch it, and take a screenshot of the home screen. Then tap the login button, type `test@email.com` in the email field, and verify the form validation works."
+
+**Debugging a crash**
+> "My app is crashing on launch. Check the crash logs for MyApp, then get the last 5 minutes of device logs filtered to the MyApp process."
+
+**Visual regression**
+> "Switch to dark mode, take a screenshot, then switch to light mode and screenshot again."

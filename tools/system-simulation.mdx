@@ -1,0 +1,220 @@
+---
+title: System Simulation
+description: Simulate GPS location, push notifications, clipboard content, camera roll media, and app permissions on your iOS Simulator.
+---
+
+The system simulation tools let you inject external events and state into the simulator — GPS coordinates, push notifications, clipboard text, media files, and permission grants — without touching the physical device.
+
+## simulator_set_location
+
+Set a simulated GPS location on the simulator. The change takes effect immediately for any app that reads `CLLocationManager`.
+
+### Parameters
+
+<ParamField path="latitude" type="number" required>
+  Latitude in decimal degrees. Valid range: `-90` to `90`.
+</ParamField>
+
+<ParamField path="longitude" type="number" required>
+  Longitude in decimal degrees. Valid range: `-180` to `180`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Set location to Apple Park, Cupertino
+simulator_set_location latitude=37.3346 longitude=-122.0090
+
+# Set location to Times Square, New York
+simulator_set_location latitude=40.7580 longitude=-73.9855
+```
+
+<Tip>
+  Use `simulator_location_scenario` or `simulator_location_route` in the Advanced Testing tools when you need to simulate movement rather than a fixed point.
+</Tip>
+
+---
+
+## simulator_send_push
+
+Deliver a push notification to an installed app using the full APNs payload format. The notification appears immediately without requiring an APNs connection or a real device.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The bundle identifier of the app to receive the push notification.
+</ParamField>
+
+<ParamField path="payload" type="object" required>
+  The complete APNs JSON payload. Must include an `aps` key at minimum.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### APNs payload example
+
+```json
+{
+  "aps": {
+    "alert": {
+      "title": "New Message",
+      "subtitle": "From Alex",
+      "body": "Hey, are you free tonight?"
+    },
+    "badge": 3,
+    "sound": "default",
+    "category": "MESSAGE_CATEGORY"
+  },
+  "messageId": "msg_987654",
+  "senderId": "user_42"
+}
+```
+
+### Silent push example
+
+```json
+{
+  "aps": {
+    "content-available": 1
+  },
+  "syncType": "full",
+  "timestamp": 1711324800
+}
+```
+
+### Usage
+
+```bash
+simulator_send_push \
+  bundleId="com.example.MyApp" \
+  payload='{"aps":{"alert":"Hello from MCP","badge":1,"sound":"default"}}'
+```
+
+<Note>
+  The app must have already requested notification permissions. Use `simulator_grant_permission` with `service="all" action="grant"` to pre-grant all permissions including notifications.
+</Note>
+
+---
+
+## simulator_set_clipboard
+
+Write text directly to the simulator's clipboard. Use this to pre-populate paste content for testing paste flows, or to speed up filling in long strings like tokens and URLs.
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  The text to place on the simulator clipboard.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Pre-load a verification code for paste testing
+simulator_set_clipboard text="474921"
+
+# Set a long URL to paste into the address bar
+simulator_set_clipboard text="https://example.com/very/long/path?token=abc123"
+```
+
+---
+
+## simulator_add_media
+
+Add one or more photos or videos to the simulator's camera roll. Files are copied from the host Mac filesystem into the simulator's Photos library.
+
+### Parameters
+
+<ParamField path="filePaths" type="string[]" required>
+  Array of absolute paths to image or video files on the host Mac. Supported formats include JPEG, PNG, HEIC, MP4, and MOV.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Add a single test image
+simulator_add_media filePaths=["/Users/you/test-images/avatar.jpg"]
+
+# Add multiple files at once
+simulator_add_media filePaths=[
+  "/Users/you/fixtures/photo1.jpg",
+  "/Users/you/fixtures/photo2.heic",
+  "/Users/you/fixtures/clip.mp4"
+]
+```
+
+---
+
+## simulator_grant_permission
+
+Grant, revoke, or reset a privacy permission for any installed app. This avoids clicking through the system permission dialog during automated testing.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The bundle identifier of the target app.
+</ParamField>
+
+<ParamField path="service" type="string" required>
+  The permission service to modify. Available values:
+
+  | Service | Description |
+  |---|---|
+  | `all` | All permissions at once |
+  | `calendar` | Calendar access |
+  | `contacts-limited` | Limited contacts access |
+  | `contacts` | Full contacts access |
+  | `location` | Location while in use |
+  | `location-always` | Location always (background) |
+  | `photos-add` | Add photos only |
+  | `photos` | Full photo library access |
+  | `media-library` | Apple Music / media library |
+  | `microphone` | Microphone |
+  | `motion` | Motion & Fitness |
+  | `reminders` | Reminders |
+  | `siri` | Siri & Dictation |
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  What to do with the permission. One of:
+  - `"grant"` — allow the permission
+  - `"revoke"` — deny the permission
+  - `"reset"` — return the permission to its unasked state (dialog will appear again)
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Examples
+
+```bash
+# Grant microphone access
+simulator_grant_permission bundleId="com.example.MyApp" service="microphone" action="grant"
+
+# Grant always-on location permission
+simulator_grant_permission bundleId="com.example.MyApp" service="location-always" action="grant"
+
+# Revoke photo library access
+simulator_grant_permission bundleId="com.example.MyApp" service="photos" action="revoke"
+
+# Reset all permissions so dialogs appear again
+simulator_grant_permission bundleId="com.example.MyApp" service="all" action="reset"
+```
+
+<Warning>
+  After calling `reset`, the app will show its permission dialog the next time it requests access. Use `grant` or `revoke` when you want a deterministic result without any dialog.
+</Warning>

@@ -1,80 +1,177 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get from zero to running your first iOS Simulator automation with Preflight MCP in under five minutes.
 ---
 
-## Get started in three steps
+Preflight MCP is an MCP server that gives AI agents full control over iOS Simulators — tap, swipe, screenshot, inspect accessibility trees, manage devices, and more. This guide gets you running your first automation.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you start, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- **macOS** with Xcode and iOS Simulator installed
+- **Node.js 18+** (`node --version` to check)
+- **[Facebook idb](https://fbidb.io/)** (recommended — enables cursor-free touch injection)
 
-### Step 2: Deploy your changes
+<Tip>
+  idb is optional but strongly recommended. Without it, Preflight falls back to CGEvent mouse injection, which briefly moves your Mac cursor during touch events.
+</Tip>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+## Install idb
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Steps>
+  <Step title="Add the Facebook Homebrew tap">
+    ```bash
+    brew tap facebook/fb
+    ```
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Install idb-companion">
+    ```bash
+    brew install idb-companion
+    ```
+  </Step>
 
-### Step 3: Go live
+  <Step title="Install the idb Python client">
+    ```bash
+    pip3 install fb-idb
+    ```
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Build from Source
 
-## Next steps
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/EthanAckerman-git/Preflight.git
+    cd Preflight
+    ```
+  </Step>
 
-Now that you have your docs running, explore these key features:
+  <Step title="Install dependencies">
+    ```bash
+    npm install
+    ```
 
-<CardGroup cols={2}>
+    <Note>
+      If idb is not found during install, the postinstall script prints a reminder with the install commands. This is informational — the install still succeeds.
+    </Note>
+  </Step>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+  <Step title="Build the project">
+    ```bash
+    npm run build
+    ```
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+    This compiles TypeScript to `dist/index.js` and builds the native Swift binary at `dist/mouse-events` (used as the CGEvent fallback for touch injection).
+  </Step>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+  <Step title="Verify the build">
+    ```bash
+    node dist/index.js
+    ```
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+    The server starts and listens on stdio. You should see no errors. Press `Ctrl+C` to stop — your MCP client will manage this process in normal use.
+  </Step>
+</Steps>
 
-</CardGroup>
+## Connect to an MCP Client
+
+<CodeGroup>
+
+```bash Claude Code (CLI)
+clause mcp add preflight node /path/to/Preflight/dist/index.js
+```
+
+```json Claude Code (.mcp.json)
+{
+  "mcpServers": {
+    "preflight": {
+      "command": "node",
+      "args": ["/path/to/Preflight/dist/index.js"],
+      "env": {
+        "LOG_LEVEL": "info",
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+```json Cursor (~/.cursor/mcp.json)
+{
+  "mcpServers": {
+    "preflight": {
+      "command": "node",
+      "args": ["/path/to/Preflight/dist/index.js"],
+      "env": {
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+```json Windsurf (~/.codeium/windsurf/mcp_config.json)
+{
+  "mcpServers": {
+    "preflight": {
+      "command": "node",
+      "args": ["/path/to/Preflight/dist/index.js"],
+      "env": {
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+</CodeGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Replace `/path/to/Preflight` with the absolute path to where you cloned the repository. If you installed idb via pip, also add your Python bin directory to `PATH` — for example, `~/Library/Python/3.x/bin`.
 </Note>
+
+For Claude Code, place `.mcp.json` in your project root. After saving the config, your MCP client will automatically start the Preflight server when needed.
+
+## Your First Automation
+
+With Preflight connected, ask your AI agent to run the following sequence. This boots a simulator and takes a screenshot to verify everything is working.
+
+<Steps>
+  <Step title="Boot a simulator">
+    Ask your agent:
+
+    > Boot the iPhone 16 Pro simulator.
+
+    Preflight calls `simulator_boot` with the device name. It polls `simulator_list_devices` until the device state is `Booted`.
+  </Step>
+
+  <Step title="Take a screenshot">
+    Ask your agent:
+
+    > Take a screenshot of the simulator.
+
+    Preflight calls `simulator_screenshot` and returns a JPEG image directly in chat — no files saved to disk.
+  </Step>
+
+  <Step title="Inspect the screen without vision">
+    For a more AI-efficient approach, use the accessibility snapshot instead of a screenshot:
+
+    > Take a snapshot of the current screen and describe what you see.
+
+    Preflight calls `simulator_snapshot`, which returns a structured accessibility tree — element roles, labels, values, and coordinates — without needing a vision model.
+  </Step>
+</Steps>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Installation" href="/installation">
+    Detailed installation guide including Xcode setup, idb PATH configuration, and build output details.
+  </Card>
+  <Card title="Tools Reference" href="/tools/overview">
+    All 57 tools across 10 categories — observation, interaction, device management, debugging, and more.
+  </Card>
+</CardGroup>

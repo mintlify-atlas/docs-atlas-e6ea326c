@@ -1,0 +1,121 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Preflight MCP",
+  "projectDescription": "A comprehensive MCP server that gives AI agents full control over iOS Simulators with 57 tools for automation, debugging, and testing.",
+  "theme": "aspen",
+  "primaryColor": "#231b61",
+  "lightColor": "#e4b5c7",
+  "darkColor": "#5f5c8e",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "IDE Setup",
+            "pages": [
+              "setup/claude-code",
+              "setup/cursor",
+              "setup/windsurf",
+              "setup/vscode",
+              "setup/other-clients"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/idb-setup",
+              "configuration/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Tools Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "tools/overview",
+              "tools/design-philosophy"
+            ]
+          },
+          {
+            "group": "Core Tools",
+            "pages": [
+              "tools/observation",
+              "tools/interaction",
+              "tools/playwright-style"
+            ]
+          },
+          {
+            "group": "Device & App",
+            "pages": [
+              "tools/device-management",
+              "tools/app-management"
+            ]
+          },
+          {
+            "group": "Debugging & Testing",
+            "pages": [
+              "tools/debugging-diagnostics",
+              "tools/system-simulation",
+              "tools/ui-configuration",
+              "tools/advanced-testing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "57 tools across 10 categories for complete iOS Simulator control",
+    "Accessibility-first approach with structured snapshot API (like Playwright)",
+    "Cursor-free touch injection via Facebook idb (IndigoHID)",
+    "AI-optimized screenshots and video key-frame extraction",
+    "Works with Claude Code, Cursor, Windsurf, VS Code, Zed, and any MCP client",
+    "Full debugging suite: crash logs, live log streaming, file inspection",
+    "Advanced testing: Dynamic Type, biometric auth, location simulation, UserDefaults"
+  ],
+  "publicApiSurface": [
+    "simulator_screenshot",
+    "simulator_snapshot",
+    "simulator_tap",
+    "simulator_swipe",
+    "simulator_long_press",
+    "simulator_type_text",
+    "simulator_press_key",
+    "simulator_list_devices",
+    "simulator_boot",
+    "simulator_shutdown",
+    "simulator_erase",
+    "simulator_launch_app",
+    "simulator_install_app",
+    "simulator_terminate_app",
+    "simulator_uninstall_app",
+    "simulator_get_logs",
+    "simulator_stream_logs",
+    "simulator_get_crash_logs",
+    "simulator_accessibility_audit",
+    "simulator_wait_for_element",
+    "simulator_element_exists",
+    "simulator_set_location",
+    "simulator_send_push",
+    "simulator_set_appearance",
+    "simulator_record_video",
+    "simulator_biometric",
+    "simulator_defaults_read",
+    "simulator_defaults_write",
+    "simulator_set_content_size",
+    "simulator_grant_permission"
+  ]
+}

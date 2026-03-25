@@ -1,0 +1,270 @@
+---
+title: Playwright-style tools
+description: Three tools inspired by Playwright MCP — structured accessibility snapshots, element waiting, and element existence checks for iOS Simulator.
+---
+
+These three tools bring the accessibility-first workflow of [Playwright MCP](https://github.com/anthropics/mcp-server-playwright) to iOS. Instead of relying on screenshots and vision models to understand the UI, you work with a structured text representation of the accessibility tree — roles, labels, values, and coordinates — that any language model can reason about directly.
+
+<Note>
+All three tools require [Facebook idb](https://fbidb.io/) to be installed. idb provides the `describe-all` command that reads the live iOS accessibility tree. Without idb, `simulator_snapshot` returns an install prompt and suggests `simulator_accessibility_audit` as a fallback.
+</Note>
+
+---
+
+## simulator_snapshot
+
+Captures a structured accessibility snapshot of the current simulator screen and returns it as formatted text. This is the preferred way to understand UI state — no vision model required.
+
+Analogous to Playwright's [`browser_snapshot`](https://playwright.dev/docs/api/class-page#page-accessibility-snapshot).
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+### Accessibility tree output format
+
+Each element in the snapshot is rendered on one line with the pattern:
+
+```
+[indent]role "label" val="value" @(x,y) widthxheight
+```
+
+| Field | Description |
+|---|---|
+| `indent` | Two spaces per nesting level — deeper elements are children of shallower ones |
+| `role` | iOS accessibility role from the element (`Button`, `TextField`, `StaticText`, `Image`, etc.) |
+| `"label"` | The element's accessibility label — what VoiceOver reads |
+| `val="..."` | The element's current value (shown only when different from label) |
+| `@(x,y)` | Top-left corner of the element in simulator screen points |
+| `widthxheight` | Element dimensions in simulator screen points |
+
+### Example snapshot output
+
+```
+iOS Accessibility Snapshot (3 root elements):
+
+Window "LoginScreen"
+  NavigationBar "Sign In"
+    StaticText "Sign In" @(156,56) 82x21
+  View
+    TextField "Email" val="" @(20,140) 354x44
+    SecureTextField "Password" val="" @(20,196) 354x44
+    Button "Sign In" @(20,268) 354x50
+    Button "Forgot password?" @(105,334) 184x20
+  TabBar
+    Button "Home" @(0,800) 98x49
+    Button "Profile" val="selected" @(98,800) 98x49
+    Button "Settings" @(196,800) 98x49
+```
+
+### Using snapshot coordinates for interaction
+
+The `@(x,y)` coordinates in the snapshot are simulator screen points you can pass directly to `simulator_tap`, `simulator_swipe`, and `simulator_long_press`. To tap the center of an element, add half its width and height to the top-left coordinates.
+
+```
+# Button "Sign In" @(20,268) 354x50
+# Center: x = 20 + 354/2 = 197, y = 268 + 50/2 = 293
+
+Tap at (197, 293) to press the Sign In button.
+```
+
+### Comparison with Playwright's browser_snapshot
+
+| Feature | Playwright `browser_snapshot` | Preflight `simulator_snapshot` |
+|---|---|---|
+| Output format | ARIA accessibility tree | iOS accessibility tree via idb |
+| Element roles | ARIA roles (`button`, `textbox`) | iOS roles (`Button`, `TextField`) |
+| Coordinate system | CSS pixels | Simulator screen points |
+| No vision model needed | Yes | Yes |
+| Works without idb | Yes (browser built-in) | No — idb required |
+
+### Return value
+
+A formatted accessibility tree followed by a usage reminder:
+
+```
+iOS Accessibility Snapshot (N root elements):
+
+[tree]
+
+---
+Use coordinates from the snapshot to interact: simulator_tap, simulator_swipe, etc.
+```
+
+---
+
+## simulator_wait_for_element
+
+Polls the accessibility tree repeatedly until an element matching your criteria appears, or until the timeout expires. Use this after navigation or async operations where you need to wait for a screen transition to complete before interacting.
+
+Analogous to Playwright's [`browser_wait_for`](https://playwright.dev/docs/api/class-page#page-wait-for-selector).
+
+### Parameters
+
+<ParamField path="label" type="string">
+  Wait for an element with this accessibility label. Case-insensitive partial match — `"Sign"` matches `"Sign In"` and `"Sign Up"`.
+</ParamField>
+
+<ParamField path="role" type="string">
+  Wait for an element with this role, for example `"Button"`, `"TextField"`, or `"StaticText"`.
+</ParamField>
+
+<ParamField path="text" type="string">
+  Wait for an element containing this text in its label or value. Case-insensitive partial match.
+</ParamField>
+
+<ParamField path="timeoutMs" type="number">
+  Maximum wait time in milliseconds. Defaults to `10000` (10 seconds).
+</ParamField>
+
+<ParamField path="pollIntervalMs" type="number">
+  How often to check the accessibility tree in milliseconds. Defaults to `500`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+<Note>
+At least one of `label`, `role`, or `text` must be provided. You can combine multiple criteria — the element must match all of them.
+</Note>
+
+### Return value
+
+On success:
+
+```
+Element found after 1200ms. Criteria: {"label":"Welcome","role":"StaticText"}
+```
+
+On timeout:
+
+```
+Timeout after 10000ms. Element not found. Criteria: {"label":"Welcome"}
+```
+
+The tool returns `isError: true` on timeout.
+
+### Example
+
+```
+Tap the "Log In" button, then wait for the element with label "Welcome" to appear before continuing.
+```
+
+---
+
+## simulator_element_exists
+
+Checks immediately whether an element matching your criteria is present on screen right now. Returns a `true` or `false` result without polling or waiting. Use this for conditional logic — branching your automation based on what's currently visible.
+
+### Parameters
+
+<ParamField path="label" type="string">
+  Search for an element with this accessibility label. Case-insensitive partial match.
+</ParamField>
+
+<ParamField path="role" type="string">
+  Search for an element with this role.
+</ParamField>
+
+<ParamField path="text" type="string">
+  Search for an element containing this text in its label or value.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Device UDID, name, or `"booted"`. Defaults to the currently booted simulator.
+</ParamField>
+
+<Note>
+At least one of `label`, `role`, or `text` must be provided.
+</Note>
+
+### Return value
+
+When found:
+
+```
+true — Element exists. Criteria: {"label":"Logout"}
+```
+
+When not found:
+
+```
+false — Element not found. Criteria: {"label":"Logout"}
+```
+
+### Example
+
+```
+Check if the "Logout" button exists — if it does, tap it. Otherwise, the user is already logged out.
+```
+
+---
+
+## Complete workflow example
+
+The following example shows all three tools working together to log in to an app, wait for the home screen, and verify a UI element — without using screenshots or a vision model.
+
+<Steps>
+
+<Step title="Snapshot the login screen">
+  Start by taking a snapshot to understand what's on screen and get element coordinates.
+
+  ```
+  Take a snapshot of the current screen.
+  ```
+
+  The snapshot returns:
+
+  ```
+  Window "LoginScreen"
+    View
+      TextField "Email" @(20,140) 354x44
+      SecureTextField "Password" @(20,196) 354x44
+      Button "Sign In" @(20,268) 354x50
+  ```
+</Step>
+
+<Step title="Fill in the form">
+  Use the coordinates from the snapshot to tap the email field and type.
+
+  ```
+  Tap the email field at (197, 162), then type "test@example.com".
+  Tap the password field at (197, 218), then type "secret123".
+  ```
+</Step>
+
+<Step title="Tap Sign In and wait for the home screen">
+  Tap the button and immediately wait for a known element on the home screen to appear.
+
+  ```
+  Tap the Sign In button at (197, 293).
+  Then wait for an element with label "Welcome" to appear (timeout 8 seconds).
+  ```
+
+  `simulator_wait_for_element` polls every 500 ms. Once the home screen loads and the "Welcome" heading appears, it returns:
+
+  ```
+  Element found after 1800ms. Criteria: {"label":"Welcome"}
+  ```
+</Step>
+
+<Step title="Verify the logout button is available">
+  Use `simulator_element_exists` to confirm the user is now logged in.
+
+  ```
+  Check if the "Logout" button exists on screen.
+  ```
+
+  ```
+  true — Element exists. Criteria: {"label":"Logout"}
+  ```
+</Step>
+
+</Steps>
+
+<Tip>
+This accessibility-first approach is faster and more reliable than screenshot-based automation. Snapshots return instantly as text, avoid vision model latency, and give you exact tap coordinates without any image analysis.
+</Tip>

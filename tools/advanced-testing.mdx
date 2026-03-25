@@ -1,0 +1,522 @@
+---
+title: Advanced Testing
+description: Dynamic Type, biometric auth, location routes, memory warnings, UserDefaults, keychain, and more advanced simulator testing tools.
+---
+
+The advanced testing tools cover specialised scenarios: accessibility text sizes, biometric authentication, custom GPS routes, memory pressure, UserDefaults injection, certificate management, and environment introspection.
+
+## simulator_set_content_size
+
+Set the Dynamic Type preferred content size category system-wide. Apps that use `UIFontTextStyle` or SwiftUI's `.font()` modifiers update immediately.
+
+### Parameters
+
+<ParamField path="size" type="string" required>
+  The content size category to apply. All 12 categories in order from smallest to largest:
+
+  | Value | Description |
+  |---|---|
+  | `extra-small` | Smallest standard size |
+  | `small` | Small standard size |
+  | `medium` | Medium standard size |
+  | `large` | Default system size |
+  | `extra-large` | Larger than default |
+  | `extra-extra-large` | Even larger |
+  | `extra-extra-extra-large` | Largest standard size |
+  | `accessibility-medium` | First accessibility size |
+  | `accessibility-large` | Second accessibility size |
+  | `accessibility-extra-large` | Third accessibility size |
+  | `accessibility-extra-extra-large` | Fourth accessibility size |
+  | `accessibility-extra-extra-extra-large` | Largest accessibility size |
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Test with the largest accessibility size
+simulator_set_content_size size="accessibility-extra-extra-extra-large"
+
+# Return to the default
+simulator_set_content_size size="large"
+```
+
+---
+
+## simulator_set_increase_contrast
+
+Enable or disable the Increase Contrast accessibility setting. When enabled, the system reduces transparency and increases color contrast throughout the UI.
+
+### Parameters
+
+<ParamField path="enabled" type="boolean" required>
+  `true` to enable Increase Contrast, `false` to disable it.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+simulator_set_increase_contrast enabled=true
+simulator_screenshot  # Verify contrast improvements
+simulator_set_increase_contrast enabled=false
+```
+
+---
+
+## simulator_location_scenario
+
+Run one of Apple's built-in GPS simulation scenarios. These animate realistic movement patterns — driving on a freeway, running through a city, or cycling — so you can test your app's response to continuous location updates.
+
+### Parameters
+
+<ParamField path="action" type="string" required>
+  Lifecycle command. One of:
+  - `"list"` — show all available scenario names
+  - `"run"` — start a named scenario
+  - `"clear"` — stop the current scenario and clear location
+</ParamField>
+
+<ParamField path="scenario" type="string">
+  Name of the scenario to run. Required when `action` is `"run"`. Built-in scenarios include:
+  - `"Freeway Drive"`
+  - `"City Run"`
+  - `"City Bicycle Ride"`
+  - `"Apple"`
+
+  Use `action="list"` to see the full set available on your Xcode version.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Discover available scenarios
+simulator_location_scenario action="list"
+
+# Simulate a city run
+simulator_location_scenario action="run" scenario="City Run"
+
+# Stop the simulation
+simulator_location_scenario action="clear"
+```
+
+---
+
+## simulator_location_route
+
+Simulate movement along a custom path by providing GPS waypoints and an optional speed. The simulator interpolates between the points, producing a smooth stream of location updates.
+
+### Parameters
+
+<ParamField path="waypoints" type="object[]" required>
+  Array of coordinate objects. Each object requires:
+  - `lat` — latitude as a number
+  - `lng` — longitude as a number
+
+  Minimum of 2 waypoints required.
+</ParamField>
+
+<ParamField path="speed" type="number">
+  Speed in meters per second. Omit to use the default walking speed.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```typescript
+// Simulate a short walk through San Francisco
+simulator_location_route(
+  waypoints: [
+    { lat: 37.7749, lng: -122.4194 },
+    { lat: 37.7751, lng: -122.4180 },
+    { lat: 37.7758, lng: -122.4172 },
+    { lat: 37.7765, lng: -122.4160 },
+  ],
+  speed: 1.4  // typical walking speed in m/s
+)
+```
+
+<Note>
+  Use `simulator_location_scenario action="clear"` to stop the route simulation.
+</Note>
+
+---
+
+## simulator_memory_warning
+
+Trigger a simulated memory warning, causing iOS to dispatch `UIApplication.didReceiveMemoryWarningNotification` and call `didReceiveMemoryWarning()` on all view controllers. Use this to verify your app frees caches and non-essential resources correctly.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Trigger the warning, then check logs to confirm app responded
+simulator_memory_warning
+simulator_get_logs process="MyApp" messageContains="memory" since="1m"
+```
+
+<Tip>
+  If the programmatic trigger doesn't work, use **Xcode → Debug → Simulate Memory Warning** as an alternative.
+</Tip>
+
+---
+
+## simulator_keychain
+
+Manage the device keychain: install trusted root certificates for HTTPS interception, add intermediate certificates, or wipe the entire keychain to restore a clean state.
+
+### Parameters
+
+<ParamField path="action" type="string" required>
+  The keychain operation to perform. One of:
+  - `"add-root-cert"` — install a root CA as trusted
+  - `"add-cert"` — install an intermediate or leaf certificate
+  - `"reset"` — clear the entire keychain
+</ParamField>
+
+<ParamField path="path" type="string">
+  Absolute path to the certificate file (`.cer`, `.pem`, or `.der`). Required for `add-root-cert` and `add-cert`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Install a mitmproxy root certificate for HTTPS inspection
+simulator_keychain action="add-root-cert" path="/Users/you/.mitmproxy/mitmproxy-ca-cert.cer"
+
+# Reset keychain after testing
+simulator_keychain action="reset"
+```
+
+---
+
+## simulator_icloud_sync
+
+Trigger iCloud synchronisation on the device. The simulator must be signed into an Apple ID for this to have any effect.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+simulator_icloud_sync
+```
+
+---
+
+## simulator_verbose_logging
+
+Enable or disable verbose device logging. When enabled, iOS emits significantly more diagnostic output, which is useful for deep kernel and framework-level debugging.
+
+### Parameters
+
+<ParamField path="enabled" type="boolean" required>
+  `true` to enable verbose logging, `false` to disable it.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+<Warning>
+  A device reboot is required for changes to take effect. Verbose logging generates very high log volume — use `simulator_stream_logs` with a `bufferSize` that matches your needs.
+</Warning>
+
+### Example
+
+```bash
+simulator_verbose_logging enabled=true
+# Reboot the device, then stream logs
+simulator_stream_logs action="start" bufferSize=500
+```
+
+---
+
+## simulator_install_app_data
+
+Install an `.xcappdata` package to replace the app's current data container. This restores a saved snapshot — useful for initialising a known state before a test run.
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  Absolute path to the `.xcappdata` package on the host Mac.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Restore a pre-seeded test dataset
+simulator_install_app_data path="/Users/you/fixtures/TestData.xcappdata"
+```
+
+---
+
+## simulator_get_env
+
+Read an environment variable from the running simulator. The simulator inherits a set of system variables — `HOME`, `TMPDIR`, `PATH` — that can be useful for constructing paths to simulator internals.
+
+### Parameters
+
+<ParamField path="variable" type="string" required>
+  The environment variable name to read. For example, `"HOME"`, `"TMPDIR"`, or `"PATH"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+simulator_get_env variable="TMPDIR"
+# → TMPDIR=/private/var/folders/...
+
+simulator_get_env variable="HOME"
+# → HOME=/Users/.../CoreSimulator/Devices/.../data
+```
+
+---
+
+## simulator_biometric
+
+Set the Face ID or Touch ID enrollment state. Toggle this to test authentication flows that branch on whether biometrics are enrolled.
+
+### Parameters
+
+<ParamField path="enrolled" type="boolean" required>
+  `true` to mark biometrics as enrolled, `false` to mark them as not enrolled.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+<Tip>
+  If the programmatic enrollment change doesn't work, use the **Simulator → Features → Face ID** or **Touch ID** menu to toggle enrollment from the Simulator app.
+</Tip>
+
+---
+
+## simulator_network_status
+
+Return the simulator's network configuration: host hardware ports, DNS resolution status, and the simulator's data path. The simulator shares the host Mac's network interfaces.
+
+### Parameters
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example output
+
+```
+Host Network Ports:
+Hardware Port: Wi-Fi
+Device: en0
+Hardware Port: Thunderbolt 1
+Device: en1
+
+DNS Resolution: Server: 192.168.1.1
+
+Simulator data path: /Users/.../CoreSimulator/Devices/.../data
+```
+
+---
+
+## simulator_defaults_read
+
+Read UserDefaults values from inside the simulator. This executes `defaults read` in the simulator's environment, giving you access to app preferences, system settings, and feature flags stored in `NSUserDefaults`.
+
+### Parameters
+
+<ParamField path="domain" type="string" required>
+  The defaults domain to read from. This is typically a bundle identifier such as `"com.example.MyApp"`, or `"NSGlobalDomain"` for system-wide settings.
+</ParamField>
+
+<ParamField path="key" type="string">
+  A specific key to read. Omit to return all key-value pairs in the domain.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Read all UserDefaults for an app
+simulator_defaults_read domain="com.example.MyApp"
+
+# Read a single feature flag
+simulator_defaults_read domain="com.example.MyApp" key="featureFlagNewUI"
+```
+
+---
+
+## simulator_defaults_write
+
+Write a UserDefaults value inside the simulator. Use this to inject feature flags, override configuration, or set test-specific app state without modifying the app's code.
+
+### Parameters
+
+<ParamField path="domain" type="string" required>
+  The defaults domain (bundle ID) to write into.
+</ParamField>
+
+<ParamField path="key" type="string" required>
+  The key to write.
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  The value to set. Always provided as a string; use the `type` parameter to cast it.
+</ParamField>
+
+<ParamField path="type" type="string">
+  The value type. One of `"string"` (default), `"int"`, `"float"`, or `"bool"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  Target device UDID or name. Defaults to the booted simulator.
+</ParamField>
+
+### Example
+
+```bash
+# Enable a boolean feature flag
+simulator_defaults_write domain="com.example.MyApp" key="featureFlagNewUI" value="true" type="bool"
+
+# Set an integer configuration value
+simulator_defaults_write domain="com.example.MyApp" key="maxRetries" value="5" type="int"
+
+# Override an API base URL for testing
+simulator_defaults_write domain="com.example.MyApp" key="apiBaseURL" value="https://staging.example.com"
+```
+
+---
+
+## UserDefaults Feature Flag Workflow
+
+Inject feature flags before a test run to exercise specific code paths without changing the app binary.
+
+<Steps>
+  <Step title="Check the current flag state">
+    ```bash
+    simulator_defaults_read domain="com.example.MyApp" key="featureFlagCheckout"
+    ```
+  </Step>
+
+  <Step title="Enable the feature flag">
+    ```bash
+    simulator_defaults_write \
+      domain="com.example.MyApp" \
+      key="featureFlagCheckout" \
+      value="true" \
+      type="bool"
+    ```
+  </Step>
+
+  <Step title="Relaunch the app to pick up the new value">
+    UserDefaults are typically read at startup. Terminate and relaunch to ensure the new value takes effect:
+
+    ```bash
+    simulator_terminate_app bundleId="com.example.MyApp"
+    simulator_launch_app bundleId="com.example.MyApp"
+    ```
+  </Step>
+
+  <Step title="Verify the flag is active">
+    Take a snapshot or screenshot to confirm the new UI path is showing:
+
+    ```bash
+    simulator_snapshot
+    ```
+  </Step>
+
+  <Step title="Reset after the test">
+    Restore defaults so later tests aren't affected:
+
+    ```bash
+    simulator_defaults_write \
+      domain="com.example.MyApp" \
+      key="featureFlagCheckout" \
+      value="false" \
+      type="bool"
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Biometric Auth Testing Workflow
+
+Test the full biometric authentication flow by controlling enrollment state and observing how your app responds.
+
+<Steps>
+  <Step title="Enroll biometrics">
+    Set Face ID or Touch ID as enrolled:
+
+    ```bash
+    simulator_biometric enrolled=true
+    ```
+  </Step>
+
+  <Step title="Launch the app and trigger authentication">
+    Navigate to the part of your app that requires biometric authentication. Take a snapshot to confirm the prompt is shown:
+
+    ```bash
+    simulator_launch_app bundleId="com.example.MyApp"
+    simulator_snapshot
+    ```
+  </Step>
+
+  <Step title="Test the unenrolled fallback path">
+    Remove enrollment to verify your app handles the case where biometrics are unavailable:
+
+    ```bash
+    simulator_biometric enrolled=false
+    simulator_terminate_app bundleId="com.example.MyApp"
+    simulator_launch_app bundleId="com.example.MyApp"
+    simulator_snapshot
+    ```
+
+    Confirm the app shows the password or PIN fallback.
+  </Step>
+
+  <Step title="Restore enrolled state">
+    Leave biometrics enrolled so other tests that depend on them pass:
+
+    ```bash
+    simulator_biometric enrolled=true
+    ```
+  </Step>
+</Steps>

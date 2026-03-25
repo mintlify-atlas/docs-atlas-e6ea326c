@@ -1,0 +1,205 @@
+---
+title: 'App management'
+description: 'Install, launch, terminate, and uninstall apps on the iOS Simulator. Four tools covering the complete app lifecycle.'
+---
+
+These four tools let you manage the full lifecycle of apps on a simulator — from installing a build to cleaning it up after testing.
+
+---
+
+## simulator_install_app
+
+Install a `.app` bundle or `.ipa` file onto the simulator from a local path.
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  Absolute or relative path to the `.app` bundle directory or `.ipa` file to install. Example: `"./build/Debug-iphonesimulator/MyApp.app"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  The device UDID, name, or `"booted"`. Defaults to the currently booted device.
+</ParamField>
+
+### Returns
+
+A confirmation message with the path of the installed app.
+
+### Example prompts
+
+```
+Install the app at ./build/MyApp.app on the booted simulator.
+```
+
+```
+Install ./archive/MyApp.ipa on the iPhone 16 Pro simulator.
+```
+
+<Tip>
+  You can use the included demo app in `demo-app/` to test all Preflight tool categories. Build it first with `xcodebuild`, then install the resulting `.app` bundle.
+
+  ```bash
+  cd demo-app
+  xcodebuild -project MCPDemo.xcodeproj -scheme MCPDemo \
+    -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+    build
+  ```
+</Tip>
+
+---
+
+## simulator_launch_app
+
+Launch an installed app by its bundle ID. You can optionally pass launch arguments and environment variables for testing specific states or configurations.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The bundle identifier of the app to launch. Example: `"com.example.MyApp"`.
+</ParamField>
+
+<ParamField path="terminateRunning" type="boolean" default="false">
+  When `true`, force-terminates the app if it is already running before relaunching. Useful for getting a clean launch every time.
+</ParamField>
+
+<ParamField path="args" type="string[]">
+  An array of launch arguments passed to the app process. Your app can read these via `CommandLine.arguments` (Swift) or `NSProcessInfo.processInfo.arguments` (Objective-C).
+
+  Example: `["--reset-onboarding", "--skip-animations"]`.
+</ParamField>
+
+<ParamField path="env" type="object">
+  A key-value map of environment variables to set for the app process. Each key is automatically prefixed with `SIMCTL_CHILD_` by the simulator. Your app reads them without the prefix.
+
+  Example: `{ "API_BASE_URL": "https://staging.example.com", "FEATURE_NEW_UI": "1" }`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  The device UDID, name, or `"booted"`. Defaults to the currently booted device.
+</ParamField>
+
+### Returns
+
+A confirmation message with the bundle ID and the process ID output from `simctl launch`.
+
+### Example prompts
+
+```
+Launch com.example.MyApp on the booted simulator.
+```
+
+```
+Launch com.example.MyApp with the environment variable FEATURE_FLAGS set to "new-checkout" and terminate it first if it's already running.
+```
+
+```
+Launch com.example.MyApp with launch arguments --uitesting and --reset-state.
+```
+
+<Note>
+  Environment variables are scoped to the launched process and are cleaned up automatically after launch. They do not persist across launches.
+</Note>
+
+---
+
+## simulator_terminate_app
+
+Force-terminate a running app by its bundle ID. Safe to call even if the app is not currently running — the tool treats "not running" as a no-op rather than an error.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The bundle identifier of the app to terminate. Example: `"com.example.MyApp"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  The device UDID, name, or `"booted"`. Defaults to the currently booted device.
+</ParamField>
+
+### Returns
+
+A confirmation that the app was terminated.
+
+### Example prompts
+
+```
+Terminate com.example.MyApp.
+```
+
+```
+Force-quit the app with bundle ID com.example.MyApp on the iPhone 16 Pro simulator.
+```
+
+---
+
+## simulator_uninstall_app
+
+Uninstall an app from the simulator by its bundle ID. Removes the app binary and all of its data container.
+
+### Parameters
+
+<ParamField path="bundleId" type="string" required>
+  The bundle identifier of the app to uninstall. Example: `"com.example.MyApp"`.
+</ParamField>
+
+<ParamField path="deviceId" type="string">
+  The device UDID, name, or `"booted"`. Defaults to the currently booted device.
+</ParamField>
+
+### Returns
+
+A confirmation that the app was uninstalled.
+
+### Example prompts
+
+```
+Uninstall com.example.MyApp from the simulator.
+```
+
+---
+
+## App lifecycle workflow
+
+A complete workflow covering install through cleanup:
+
+<Steps>
+  <Step title="Install the app">
+    Install your latest build from a local path.
+
+    ```
+    Install ./build/Debug-iphonesimulator/MyApp.app on the booted simulator.
+    ```
+  </Step>
+  <Step title="Launch with args and environment">
+    Start the app with any test configuration you need.
+
+    ```
+    Launch com.example.MyApp with environment variable MOCK_SERVER set to "true" and launch argument --skip-onboarding.
+    ```
+  </Step>
+  <Step title="Test the app">
+    Interact with the app, take screenshots, check accessibility snapshots, and inspect logs.
+
+    ```
+    Take a snapshot of the current screen and tap the button labeled "Get Started".
+    ```
+  </Step>
+  <Step title="Terminate the app">
+    Stop the app cleanly before reinstalling or switching configurations.
+
+    ```
+    Terminate com.example.MyApp.
+    ```
+  </Step>
+  <Step title="Uninstall when done">
+    Remove the app and all its data when your test session is complete.
+
+    ```
+    Uninstall com.example.MyApp from the simulator.
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  For UI testing automation, use `terminateRunning: true` on `simulator_launch_app` instead of calling `simulator_terminate_app` separately. This relaunches the app in a single step.
+</Tip>

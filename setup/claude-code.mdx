@@ -1,0 +1,91 @@
+---
+title: Claude Code
+description: Set up Preflight MCP with Claude Code using the CLI or a .mcp.json config file.
+---
+
+<Steps>
+  <Step title="Build Preflight">
+    If you haven't already, clone and build the server:
+
+    ```bash
+    git clone https://github.com/EthanAckerman-git/Preflight.git
+    cd Preflight
+    npm install
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Add Preflight to Claude Code">
+    Choose one of two methods:
+
+    <Tabs>
+      <Tab title="CLI command">
+        Run this command, replacing the path with the actual location of your Preflight clone:
+
+        ```bash
+        claude mcp add preflight node /path/to/Preflight/dist/index.js
+        ```
+
+        Claude Code registers Preflight as a global MCP server immediately.
+      </Tab>
+
+      <Tab title=".mcp.json config file">
+        Create or edit `.mcp.json` in your project root:
+
+        ```json
+        {
+          "mcpServers": {
+            "preflight": {
+              "command": "node",
+              "args": ["/path/to/Preflight/dist/index.js"],
+              "env": {
+                "LOG_LEVEL": "info",
+                "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+              }
+            }
+          }
+        }
+        ```
+
+        Replace `/path/to/Preflight/dist/index.js` with the absolute path on your machine.
+
+        <Note>
+          If you installed idb via pip, add your Python bin directory to `PATH`. For example:
+          `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:~/Library/Python/3.x/bin`
+        </Note>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify the connection">
+    Start (or restart) Claude Code. Run the following prompt to confirm Preflight is connected:
+
+    ```
+    List available MCP tools
+    ```
+
+    You should see Preflight's tools listed — `simulator_screenshot`, `simulator_snapshot`, `simulator_tap`, and 54 more.
+  </Step>
+</Steps>
+
+## Test prompts
+
+Once connected, try these prompts to confirm everything is working:
+
+<CodeGroup>
+  ```text Basic check
+  List all available iOS simulators.
+  ```
+
+  ```text Accessibility-first workflow
+  Take a snapshot of the current simulator screen to see what elements are available.
+  ```
+
+  ```text Full flow
+  Boot the iPhone 16 Pro simulator, take a screenshot, and describe what's on screen.
+  ```
+</CodeGroup>
+
+<Tip>
+  Use `simulator_snapshot` before `simulator_screenshot` whenever possible. The snapshot returns a structured accessibility tree that models can read without a vision model, saving tokens.
+</Tip>
